@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en"><!--  manifest="cache.manifest" -->
+	<head>
+		<title>Replicator Test</title>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="description" content="">
+		<meta name="author" content="">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<link rel="stylesheet" type="text/css" href="/cdn/twitter-bootstrap-v3.1.1/css/bootstrap.min.css" media="screen" />
+		<style type="text/css">
+			body						{ font-family: Arial; }
+		</style>
+	</head>
+	<body>
+		<h1>Replicator Test</h1>
+
+		<p>This test currently only works <b>non-SSL</b>, i.e. at http://localhost:8080/lapis/repl/test.html</p>
+		<p>This test needs:
+			<ol>
+				<li>CouchDB Installed</li>
+				<li>CouchDB CORS settings, e.g. see below</li>
+				<li>CouchDB running at localhost:5984</li>
+			</ol>
+		</p>
+		<pre>
+;;; SDF
+enable_cors = true
+
+[cors]
+origins = *
+methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
+
+		</pre>
+
+
+		<ol class="main">
+		</ol>
+
+
+	</body>
+
+
+	<script type="text/javascript" src="/cdn/jquery-v1.7.2/jquery-1.7.2.min.js"></script>
+	<script type="text/javascript" src="/cdn/underscore/underscore-min.js"></script>
+	<script type="text/javascript" src="/cdn/twitter-bootstrap-v3.1.1/js/bootstrap.min.js"></script>
+
+	<script type="text/javascript" src="../base/Base.js"> </script>
+	<script type="text/javascript" src="../base/Happen.js"> </script>
+	<script type="text/javascript" src="../base/Log.js"> </script>
+	<script type="text/javascript" src="../base/OrderedMap.js"> </script>
+
+	<script type="text/javascript" src="../store/Store.js"> </script>
+	<script type="text/javascript" src="../store/StoreCouch.js"> </script>
+	<script type="text/javascript" src="../store/StoreIndexedDB.js"> </script>
+	<script type="text/javascript" src="ReplicatorBase.js"> </script>
+	<script type="text/javascript" src="ReplicatorCouch.js"> </script>
+
+	<script type="text/javascript">
+
+		function assert(bool, text) {
+			$(".main").append("<li>" + (bool ? "--- OK --- " : "*** FAIL *** ") + text + "</li>");
+		}
+
+	    var repl = x.repl.ReplicatorCouch.instantiate("Test", "http://localhost:5984"),
+	    	test_obj_1 = { a: "AAA", b: 7, c: true },
+	    	test_obj_2 = { a: "Aardvark", b: 2.56723423 },
+	    	test_obj_3 = { a: { d: "DD", e: "EE" }, b: [ 1, 2, 4, 5 ], c: "CCC" },
+	    	test_obj_4 = { a: "Apple", b: 19, c: "<body><p>Hello Mate, <br/>How are you?</p></body>" };
+
+		repl.replication_continue = false;		// manual calls to replicate()
+
+
+	    repl.start()
+			.then(function () {
+				assert(true, "SETUP");							//--------------------------------------------------------------------------
+				assert(true, "started okay");
+				return repl.local_store.deleteAll();
+		    })
+			.then(function (results) {
+				repl.debug("about to clear the client test store");
+				return repl.local_store.getAll();
+			})
+			.then(function (results) {
+				assert(results.length === 0, "zero documents in test client store");
+			})
+			.then(function () {
+				repl.debug("about to delete couch test database");
+				return repl.remote_store.deleteDatabase();
+			})
+			.then(null, function (error) {
+				repl.error(error);
+			})
+			.then(function () {
+				repl.debug("about to create couch test database");
+				return repl.remote_store.createDatabase();
+			})
+			.then(null, function (error) {
+				repl.error(error);
+			})
+			.then(function () {
+				repl.debug("about to get changes from couch test database");
+				return repl.remote_store.getChanges();
+			})
+			.then(function (data) {
+				assert(true, "PHASE 1 - 1 doc created locally and successfully replicated to server");
+				assert(JSON.stringify(data) === "{\"results\":[],\"last_seq\":0}", "No changes reported, i.e. {\"results\":[],\"last_seq\":0}");
+				repl.debug("couch changes: " + JSON.stringify(data));
+				repl.debug("store new local doc: " + JSON.stringify(test_obj_1));
+				return repl.saveDoc("test_obj_1", test_obj_1);
+			})
+			.then(function (doc_obj) {
+				repl.debug("doc saved: " + JSON.stringify(doc_obj));
+			})
+			.then(function () {
+				repl.debug("replicate");
+				return repl.replicate();
+			})
+			.then(function () {
+				assert(repl.replication_data.server_changes === 0, "0 server changes");
+				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
+				assert(repl.replication_data. local_updates === 1, "1 local updates");
+				assert(repl.replication_data.remote_updates === 0, "0 remote updates");
+				assert(repl.replication_data.remote_creates === 0, "0 remote creates");
+				assert(repl.replication_data.conflicts      === 0, "0 conflicts");
+				repl.debug(JSON.stringify(repl.replication_data));
+				return repl.remote_store.get("test_obj_1");
+			})
+			.then(function (doc_obj) {
+				assert(true, "PHASE 2 - 1 doc changed remotely and 3 created remotely all successfully replicated to local");
+				repl.debug("remote object: " + JSON.stringify(doc_obj));
+				assert((doc_obj._id === "test_obj_1" && doc_obj.uuid === "test_obj_1"), "remote object 1 (created on local) has correct keys")
+				assert((doc_obj._rev.indexOf("1-") === 0), "remote object 1 (created on local) has server revision 1")
+				assert(_.isEqual(test_obj_1, _.omit(doc_obj, ["_id", "_rev", "uuid"])), "remote object 1 (created on local) payload matches");
+
+				test_obj_1.c = false;
+				test_obj_1.d = "Dum diddy dum";
+				return repl.remote_store.save(_.extend({ uuid: "test_obj_1", _rev: doc_obj._rev }, test_obj_1));
+			})
+			.then(function (data) {
+				assert((data.ok && data.rev.indexOf("2-") === 0), "remote object 1 (created on local) has server revision 2");
+				return repl.remote_store.save(_.extend({ uuid: "test_obj_2" }, test_obj_2));
+			})
+			.then(function (data) {
+				assert((data.ok && data.rev.indexOf("1-") === 0), "remote object 2 (created on remote) has server revision 1");
+				return repl.remote_store.save(_.extend({ uuid: "test_obj_3" }, test_obj_3));
+			})
+			.then(function (data) {
+				assert((data.ok && data.rev.indexOf("1-") === 0), "remote object 3 (created on remote) has server revision 1");
+				return repl.remote_store.save(_.extend({ uuid: "test_obj_4" }, test_obj_4));
+			})
+			.then(function (data) {
+				assert((data.ok && data.rev.indexOf("1-") === 0), "remote object 4 (created on remote) has server revision 1");
+				repl.debug("about to get changes from couch test database");
+				return repl.remote_store.getChanges();
+			})
+			.then(function (data) {
+				repl.debug(JSON.stringify(data));
+				// assert(JSON.stringify(data) === "{\"results\":[],\"last_seq\":0}", "No changes reported, i.e. {\"results\":[],\"last_seq\":0}");
+				repl.debug("replicate");
+				return repl.replicate();
+			})
+			.then(function () {
+				assert(repl.replication_data.server_changes === 4, "4 server changes");
+				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
+				assert(repl.replication_data. local_updates === 0, "0 local updates");
+				assert(repl.replication_data.remote_updates === 1, "1 remote updates");
+				assert(repl.replication_data.remote_creates === 3, "3 remote creates");
+				assert(repl.replication_data.conflicts      === 0, "0 conflicts");
+				repl.debug(JSON.stringify(repl.replication_data));
+				return repl.local_store.get("test_obj_1");
+			})
+			.then(function (doc_obj) {
+				assert(true, "PHASE 3 - 3 docs changed locally and 1 doc changed remotely all successfully replicated");
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_1", "local object 1 (changed on remote) has correct keys")
+				assert(_.isEqual(test_obj_1, doc_obj.payload), "local object 1 (changed on remote) payload matches");
+				test_obj_1.a = "Autumn";
+				return repl.saveDoc("test_obj_1", test_obj_1);
+			})
+			.then(function (doc_obj) {
+				repl.debug("test_obj_1 local change saved: " + JSON.stringify(doc_obj));
+				return repl.local_store.get("test_obj_2");
+			})
+			.then(function (doc_obj) {
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_2", "local object 2 (changed on remote) has correct keys")
+				assert(_.isEqual(test_obj_2, doc_obj.payload), "local object 2 (changed on remote) payload matches");
+				test_obj_2.a = "Summer";
+				return repl.remote_store.save(_.extend({ uuid: "test_obj_2", _rev: doc_obj._rev }, test_obj_2));
+			})
+			.then(function (data) {
+				repl.debug("test_obj_2 remote change saved: " + JSON.stringify(data));
+				assert((data.ok && data.rev.indexOf("2-") === 0), "remote object 2 (changed on remote) has server revision 2");
+				return repl.local_store.get("test_obj_3");
+			})
+			.then(function (doc_obj) {
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_3", "local object 3 (changed on remote) has correct keys")
+				assert(_.isEqual(test_obj_3, doc_obj.payload), "local object 3 (changed on remote) payload matches");
+				test_obj_3.a = "Winter";
+				return repl.saveDoc("test_obj_3", test_obj_3);
+			})
+			.then(function (doc_obj) {
+				repl.debug("test_obj_3 local change saved: " + JSON.stringify(doc_obj));
+				return repl.local_store.get("test_obj_4");
+			})
+			.then(function (doc_obj) {
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_4", "local object 4 (changed on remote) has correct keys")
+				assert(_.isEqual(test_obj_4, doc_obj.payload), "local object 4 (changed on remote) payload matches");
+
+				repl.debug("replicate");
+				return repl.replicate();
+			})
+			.then(function () {
+				assert(repl.replication_data.server_changes === 1, "1 server changes");
+				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
+				assert(repl.replication_data. local_updates === 2, "2 local updates");
+				assert(repl.replication_data.remote_updates === 1, "1 remote updates");
+				assert(repl.replication_data.remote_creates === 0, "0 remote creates");
+				assert(repl.replication_data.conflicts      === 0, "0 conflicts");
+				repl.debug(JSON.stringify(repl.replication_data));
+				return repl.local_store.get("test_obj_1");
+			})
+			.then(function (doc_obj) {
+				assert(true, "PHASE 4 - 1 doc changed both locally and remotely causes conflict");
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_1", "local object 1 (changed on local) has correct keys")
+				assert(_.isEqual(test_obj_1, doc_obj.payload), "local object 1 (changed on local) payload matches");
+				test_obj_1.b = 100072;
+				return repl.remote_store.save(_.extend({ uuid: "test_obj_1", _rev: doc_obj._rev }, test_obj_1));
+			})
+			.then(function (data) {
+				repl.debug("test_obj_1 remote change saved: " + JSON.stringify(data));
+				assert((data.ok && data.rev.indexOf("4-") === 0), "remote object 2 (changed on remote) has server revision 4");
+				test_obj_1.b = 9840656;
+				return repl.saveDoc("test_obj_1", test_obj_1);
+			})
+			.then(function (doc_obj) {
+				repl.debug("test_obj_1 local change saved: " + JSON.stringify(doc_obj));
+				return repl.local_store.get("test_obj_2");
+			})
+			.then(function (doc_obj) {
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_2", "local object 2 (changed on remote) has correct keys")
+				assert(_.isEqual(test_obj_2, doc_obj.payload), "local object 2 (changed on remote) payload matches");
+				return repl.local_store.get("test_obj_3");
+			})
+			.then(function (doc_obj) {
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_3", "local object 3 (changed on local) has correct keys")
+				assert(_.isEqual(test_obj_3, doc_obj.payload), "local object 3 (changed on local) payload matches");
+
+				repl.debug("replicate");
+				return repl.replicate();
+			})
+			.then(function () {
+				assert(repl.replication_data.server_changes === 1, "1 server changes");
+				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
+				assert(repl.replication_data. local_updates === 1, "1 local updates");
+				assert(repl.replication_data.remote_updates === 0, "0 remote updates");
+				assert(repl.replication_data.remote_creates === 0, "0 remote creates");
+				assert(repl.replication_data.conflicts      === 1, "1 conflicts");
+				repl.debug(JSON.stringify(repl.replication_data));
+				return repl.local_store.get("test_obj_1");
+			})
+			.then(function (doc_obj) {
+				assert(true, "PHASE 5");							//--------------------------------------------------------------------------
+				repl.debug("local object: " + JSON.stringify(doc_obj));
+				assert(doc_obj.uuid === "test_obj_1", "local object 1 (conflict) has correct keys")
+				assert(_.isEqual(test_obj_1, doc_obj.payload), "local object 1 (conflict) payload matches");
+				assert(doc_obj.conflict, "Document marked as in conflict");
+			})
+			.then(null, function (error) {
+				repl.error(error);
+			});
+
+
+	</script>
+</html>

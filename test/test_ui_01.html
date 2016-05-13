@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><!--  manifest="cache.manifest" -->
+	<head>
+		<title>Test UI 01</title>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="description" content="">
+		<meta name="author" content="">
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<link rel="stylesheet" type="text/css" href="/cdn/twitter-bootstrap-v3.1.1/css/bootstrap.min.css" media="screen" />
+		<style type="text/css">
+			body						{ font-family: Arial; }
+		</style>
+	</head>
+	<body>
+		<div class="main">
+		</div>
+	</body>
+
+
+	<script type="text/javascript" src="/cdn/jquery-v1.7.2/jquery-1.7.2.min.js"></script>
+	<script type="text/javascript" src="/cdn/underscore/underscore-min.js"></script>
+	<script type="text/javascript" src="/cdn/twitter-bootstrap-v3.1.1/js/bootstrap.min.js"></script>
+
+	<script type="text/javascript" src="../base/Base.js"> </script>
+	<script type="text/javascript" src="../base/Happen.js"> </script>
+	<script type="text/javascript" src="../base/Log.js"> </script>
+	<script type="text/javascript" src="../base/OrderedMap.js"> </script>
+
+	<script type="text/javascript" src="../data/FieldSet.js"> </script>
+	<script type="text/javascript" src="../data/Entity.js"> </script>
+	<script type="text/javascript" src="../data/Text.js"> </script>
+	<script type="text/javascript" src="../data/Text-Render.js"> </script>
+	<script type="text/javascript" src="../data/Text-Validation.js"> </script>
+	<script type="text/javascript" src="../data/Number.js"> </script>
+
+	<script type="text/javascript" src="../ui/Element.js"> </script>
+	<script type="text/javascript" src="../ui/Section.js"> </script>
+	<script type="text/javascript" src="../ui/Form.js"> </script>
+
+	<script type="text/javascript">
+		var main = $("div.main");
+		x.ui.Element.jquery_elem = main;
+		var p = x.ui.Element.makeElement("p");
+		p.text("Hello World!");
+	</script>
+</html>
