@@ -20,7 +20,8 @@ x.repl.ReplicatorBase = x.base.Base.clone({
      local_store        : null,             // local Store object
     remote_store        : null,             // remote Store object
     replication_interval: 1000 * 60,
-    replication_continue: true
+    replication_continue: true,
+    prop_id_rev         : "_rev"
 });
 
 
@@ -52,11 +53,16 @@ x.repl.ReplicatorBase.define("replicate", function () {
         started_at    : (new Date()).toISOString(),
         start_point   : null,
           end_point   : null,
-        local_deletes : 0,
-        local_updates : 0,
-        remote_updates: 0,
-        remote_creates: 0,
-        conflicts     : 0
+//        found_local_creates : 0,
+        found_local_updates : 0,
+        found_local_deletes : 0,
+        found_remote_creates: 0,
+        found_remote_updates: 0,
+        found_remote_deletes: 0,
+        found_conflicts     : 0,
+         local_updates_made : 0,
+        remote_updates_made : 0,
+        remote_deletes_made : 0
     };
     this.info("beginning replicate() at " + this.replication_data.started_at);
     this.setStatus("replicating", "getting changes from server");
@@ -95,7 +101,7 @@ x.repl.ReplicatorBase.define("saveDoc", function (uuid, payload, conflict_resolv
             return { uuid: uuid };
         })
         .then(function (doc_obj) {
-            if (doc_obj.conflict && !conflict_resolved) {
+            if (doc_obj.conflict_payload && !conflict_resolved) {
                 that.throwError("document cannot be saved until conflict is resolved");
             }
             if (_.isEqual(doc_obj.payload, payload)) {          // no change to save
@@ -103,7 +109,7 @@ x.repl.ReplicatorBase.define("saveDoc", function (uuid, payload, conflict_resolv
             }
             doc_obj.local_change = true;        // test to see if payload has changed
             doc_obj.payload = payload;
-            delete doc_obj.conflict;
+            delete doc_obj.conflict_payload;
             return that.local_store.save(doc_obj);
         });
 });
@@ -166,47 +172,65 @@ x.repl.ReplicatorBase.define("loopOverLocalDocs", function (results, server_chan
 
 
 x.repl.ReplicatorBase.define("replicateLocalSingleDoc", function (doc_obj, server_changed_doc_rev) {
-    var that = this,
-        promise;
-
+    var promise;
     this.info("beginning replicateLocalSingleDoc() on: " + doc_obj.uuid +
         ", local_change: " + doc_obj.local_change +
         ", server_changed_doc_rev: " + server_changed_doc_rev +
-        ", doc_obj._rev: " + doc_obj._rev);
+        ", doc_obj._rev: " + doc_obj[this.prop_id_rev]);
 
     if (doc_obj.uuid === "root") {
         this.trace("ignore root doc in replication");
 
     } else if (doc_obj.local_delete) {
-        this.debug("replicateLocalSingleDoc() marked for deletion, delete from server");
-        promise = this.deleteFromServer(doc_obj);
-        this.replication_data.local_deletes += 1;
+        promise = this.foundLocalDelete(doc_obj);
 
-    } else if (doc_obj.conflict || !doc_obj.payload || (server_changed_doc_rev && server_changed_doc_rev !== doc_obj._rev)) {
-        this.debug("replicateLocalSingleDoc() rev diff, pull from server");
-        delete doc_obj.latest_server_rev;
-//        doc_obj.latest_server_rev = latest_server_rev;
-        if (doc_obj.local_change) {
-            this.error("replicateLocalSingleDoc() conflict found");
-            doc_obj.conflict_payload = doc_obj.payload;
-            this.replication_data.conflicts += 1;
-        } else {
-            this.replication_data.remote_updates += 1;
-        }
-        promise = this.local_store.save(doc_obj)
-            .then(function () {
-                return that.pullFromServer(doc_obj);
-            });
+    } else if (doc_obj.conflict_payload || (doc_obj.local_change && server_changed_doc_rev && server_changed_doc_rev !== doc_obj[this.prop_id_rev])) {
+        promise = this.foundConflict(doc_obj);
+
+    } else if (server_changed_doc_rev && server_changed_doc_rev !== doc_obj[this.prop_id_rev]) {
+        promise = this.foundRemoteUpdate(doc_obj);
 
     } else if (doc_obj.local_change) {
-        this.debug("replicateLocalSingleDoc() local_change, push to server");
-        this.replication_data.local_updates += 1;
-        promise = this.pushToServer(doc_obj);
+        promise = this.foundLocalUpdate(doc_obj);
     }
     if (!promise) {
         promise = this.getNullPromise();
     }
     return promise;
+});
+
+x.repl.ReplicatorBase.define("foundLocalDelete", function (doc_obj) {
+    var that = this;
+    this.debug("foundLocalDelete(): " + JSON.stringify(doc_obj));
+    this.replication_data.found_local_deletes += 1;
+    return this.remote_store.delete(doc_obj.uuid)
+        .then(function (/*data*/) {
+            that.replication_data.remote_deletes_made += 1;
+            that.debug("deleteFromServer() okay");
+            return that.local_store.delete(doc_obj.uuid);
+        });
+});
+
+
+x.repl.ReplicatorBase.define("foundConflict", function (doc_obj) {
+    this.info("markAsConflict(): " + JSON.stringify(doc_obj));
+    doc_obj.conflict_payload = doc_obj.payload;
+    this.replication_data.found_conflicts += 1;
+    return this.pullFromServer(doc_obj);
+});
+
+
+x.repl.ReplicatorBase.define("foundRemoteUpdate", function (doc_obj) {
+    this.debug("foundRemoteUpdate(): " + JSON.stringify(doc_obj));
+    this.replication_data.found_remote_updates += 1;
+    return this.pullFromServer(doc_obj);
+});
+
+
+x.repl.ReplicatorBase.define("foundLocalUpdate", function (doc_obj) {
+    this.debug("foundLocalUpdate(): " + JSON.stringify(doc_obj));
+    this.replication_data.found_local_updates += 1;
+    return this.pushToServer(doc_obj);
 });
 
 
@@ -215,7 +239,7 @@ x.repl.ReplicatorBase.define("loopOverRemoteDocs", function (server_changed_docs
         uuid = Object.keys(server_changed_docs)[0];
 
     if (uuid) {
-        this.replication_data.remote_creates += 1;
+        this.replication_data.found_remote_creates += 1;
         delete server_changed_docs[uuid];
         return this.pullFromServer({ uuid: uuid })
             .then(function () {
@@ -226,30 +250,19 @@ x.repl.ReplicatorBase.define("loopOverRemoteDocs", function (server_changed_docs
 });
 
 
-x.repl.ReplicatorBase.define("deleteFromServer", function (doc_obj) {
-    var that = this;
-    this.info("beginning deleteFromServer(): " + doc_obj.uuid);
-    return this.remote_store.delete(doc_obj.uuid)
-        .then(function (/*data*/) {
-            that.debug("deleteFromServer() okay");
-            return that.local_store.delete(doc_obj.uuid);
-        });
-});
-
-
 x.repl.ReplicatorBase.define("pushToServer", function (doc_obj) {
     var that = this,
         remote_doc;
 
     this.info("beginning pushToServer(): " + doc_obj.uuid);
-    remote_doc = _.extend(_.pick(doc_obj, "uuid", "_rev"), doc_obj.payload);
+    remote_doc = _.extend(_.pick(doc_obj, "uuid", this.prop_id_rev), doc_obj.payload);
     this.debug("sending object: " + JSON.stringify(remote_doc));
     return this.remote_store.save(remote_doc)
         .then(null, /* catch */ function (reason) {
-            if (reason === "409") {            // conflict
-                return that.markAsConflict(doc_obj);
-            }
-            that.throwError(reason);
+            // if (reason === "409") {            // conflict
+            //     return that.markAsConflict(doc_obj);
+            // }
+            that.throwError(reason);            // conflict should have been dealt with already
         })
         .then(function (data) {
 //{"ok":true,"id":"cf454fa3-daad-41c1-bed3-2df58a70eec5","rev":"3-6fe8a81ac68a0f5f87644f1ed2898554"}
@@ -257,7 +270,8 @@ x.repl.ReplicatorBase.define("pushToServer", function (doc_obj) {
                 that.throwError(JSON.stringify(data));
             }
             that.debug("pushToServer() okay: new rev: " + data.rev);
-            doc_obj._rev = data.rev;
+            that.replication_data.remote_updates_made += 1;
+            doc_obj[that.prop_id_rev] = data.rev;
             delete doc_obj.local_change;
             return that.local_store.save(doc_obj);
         });
@@ -272,19 +286,13 @@ x.repl.ReplicatorBase.define("pullFromServer", function (doc_obj) {
     }
     return this.remote_store.get(doc_obj.uuid)
         .then(function (data) {
-            doc_obj._rev = data._rev;
-            doc_obj.payload = _.omit(data, [ "uuid", "_id", "_rev" ]);
+            doc_obj[that.prop_id_rev] = data[that.prop_id_rev];
+            doc_obj.payload = _.omit(data, [ "uuid", "_id", that.prop_id_rev ]);
+            that.replication_data.local_updates_made += 1;
             return that.local_store.save(doc_obj);
         });
 });
 
-
-x.repl.ReplicatorBase.define("markAsConflict", function (doc_obj) {
-    this.info("beginning markAsConflict()");
-    doc_obj.conflict = true;
-    delete doc_obj.local_change;
-    return this.local_store.save(doc_obj);
-});
 
 
 // This function should be used to reset the replication state of the local data, but NOT to clean up the doc payloads
@@ -300,8 +308,7 @@ x.repl.ReplicatorBase.define("replicationReset", function () {
                 doc = results[i];
                 delete doc.repl_status;
                 delete doc.local_change;
-                delete doc.conflict;
-                delete doc._rev;
+                delete doc[that.prop_id_rev];
                 delete doc.conflict_payload;
                 that.local_store.save(doc);
             }
@@ -332,7 +339,7 @@ x.repl.ReplicatorBase.define("getReplicationStatus", function (doc_obj) {
     if (doc_obj.local_change) {
         addPiece("local change");
     }
-    if (doc_obj.conflict) {
+    if (doc_obj.conflict_payload) {
         addPiece("** conflict **");
     }
     if (!out) {
@@ -383,101 +390,4 @@ x.repl.ReplicatorBase.define("resetReplicationPoint", function () {
             that.error("setThisReplicationPoint() failed: " + reason);
         });
 });
-
-
-//------------------------------------------------------------------------------ repl_status approach
-//------------------------------------------------------------------------------ Replication Status
-/*
-//action being one of "Local Change", "Synced", "Server Change"
-x.repl.ReplicatorBase.define("updateReplStatus", function (doc_obj, action) {
-    if (action === "Local Change") {
-        if (!doc_obj.repl_status) {
-            doc_obj.repl_status = "Local Only";
-        } else if (doc_obj.repl_status === "Up-to-date") {
-            doc_obj.repl_status = "Local Change";
-        } else if (doc_obj.repl_status !== "Local Change") {     // leave Local Change it as-is
-            doc_obj.repl_status = "Conflict";
-        }
-    } else if (action === "Synced") {
-        doc_obj.repl_status = "Up-to-date";
-    } else if (action === "Server Change") {
-        if (doc_obj.repl_status === "Up-to-date") {
-            doc_obj.repl_status = "Server Change";
-        } else if (doc_obj.repl_status !== "Server Only" && doc_obj.repl_status !== "Server Change") {
-            // leave Server Only and Server Change as-is
-            doc_obj.repl_status = "Conflict";
-        }
-    } else if (action === "Local Delete") {
-        doc_obj.repl_status = "Local Delete";
-    } else if (action === "Forget Local") {
-        if (doc_obj.repl_status === "Conflict") {
-            doc_obj.repl_status = "Server Change";
-        }
-    } else {
-        this.throwError("invalid action: " + action);
-    }
-});
-
-x.repl.ReplicatorBase.define("mustDeleteLocal", function (doc_obj) {
-    return (doc_obj.repl_status === "Server Delete");
-});
-
-x.repl.ReplicatorBase.define("mustDeleteServer", function (doc_obj) {
-    return (doc_obj.repl_status === "Local Delete");
-});
-
-x.repl.ReplicatorBase.define("mustPushUpdateToServer", function (doc_obj) {
-    return (!doc_obj.repl_status || doc_obj.repl_status === "Local Only" || doc_obj.repl_status === "Local Change");
-});
-
-x.repl.ReplicatorBase.define("mustPullUpdateFromServer", function (doc_obj) {
-    return (doc_obj.repl_status === "Server Only" || doc_obj.repl_status === "Server Change");
-});
-
-x.repl.ReplicatorBase.define("forgetLocalChanges", function (doc_obj) {
-    // var that = this;
-//  alert("forgetLocalChanges: " + doc_obj.uuid);
-    if (doc_obj.repl_status !== "Conflict") {
-        return false;
-    }
-    this.updateReplStatus(doc_obj, "Forget Local");
-    return this.store.save(doc_obj);
-});
-
-*/
-
-
-
-/*
-x.repl.ReplicatorBase.define("replicateDoc = function (doc_obj, server_props_all) {
-    var server_props = server_props_all[doc_obj.uuid];
-    this.log("beginning replicateDoc() on: " + doc_obj.uuid + ", repl_status: " + doc_obj.repl_status + ", server_props: " + server_props, 2);
-    if (server_props !== doc_obj.payload.rev) {
-        this.log("replicateDoc() rev diff, setting repl_status to Server Change", 3);
-        this.updateReplStatus(doc_obj, "Server Change");
-        x.store.storeDoc("dox", doc_obj);
-    }
-    delete server_props_all[doc_obj.uuid];
-
-    if (this.mustDeleteLocal(doc_obj)) {
-        this.log("replicateDoc() must delete local", 3);
-        this.deleteLocal(doc_obj);
-
-    } else if (this.mustDeleteServer(doc_obj)) {
-        this.log("replicateDoc() must delete server", 3);
-        this.deleteServer(doc_obj.uuid);
-
-    } else if (this.mustPushUpdateToServer(doc_obj)) {
-        this.log("replicateDoc() push to server - Local Only OR Local Change", 3);
-        this.pushToServer(doc_obj);
-
-    } else if (this.mustPullUpdateFromServer(doc_obj)) {
-        this.log("replicateDoc() pull from server - Server Only OR Server Change", 3);
-        this.pullFromServer(doc_obj);
-
-    } else {
-        this.log("replicateDoc() no action", 3);
-    }
-};
-*/
 

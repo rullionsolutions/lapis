@@ -61,9 +61,11 @@ methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
 
 		function assert(bool, text) {
 			$(".main").append("<li>" + (bool ? "--- OK --- " : "*** FAIL *** ") + text + "</li>");
+			count[bool ? "pass" : "fail"] += 1;
 		}
 
 	    var repl = x.repl.ReplicatorCouch.instantiate("Test", "http://localhost:5984"),
+	    	count = { pass: 0, fail: 0 },
 	    	test_obj_1 = { a: "AAA", b: 7, c: true },
 	    	test_obj_2 = { a: "Aardvark", b: 2.56723423 },
 	    	test_obj_3 = { a: { d: "DD", e: "EE" }, b: [ 1, 2, 4, 5 ], c: "CCC" },
@@ -118,12 +120,13 @@ methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
 				return repl.replicate();
 			})
 			.then(function () {
-				assert(repl.replication_data.server_changes === 0, "0 server changes");
-				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
-				assert(repl.replication_data. local_updates === 1, "1 local updates");
-				assert(repl.replication_data.remote_updates === 0, "0 remote updates");
-				assert(repl.replication_data.remote_creates === 0, "0 remote creates");
-				assert(repl.replication_data.conflicts      === 0, "0 conflicts");
+				assert(repl.replication_data.server_changes       === 0, "0 server changes");
+				assert(repl.replication_data. found_local_updates === 1, "1 found local updates");
+				assert(repl.replication_data. found_local_deletes === 0, "0 found local deletes");
+				assert(repl.replication_data.found_remote_creates === 0, "0 found remote creates");
+				assert(repl.replication_data.found_remote_updates === 0, "0 found remote updates");
+				assert(repl.replication_data.found_remote_deletes === 0, "0 found remote updates");
+				assert(repl.replication_data.found_conflicts      === 0, "0 conflicts");
 				repl.debug(JSON.stringify(repl.replication_data));
 				return repl.remote_store.get("test_obj_1");
 			})
@@ -162,12 +165,14 @@ methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
 				return repl.replicate();
 			})
 			.then(function () {
-				assert(repl.replication_data.server_changes === 4, "4 server changes");
-				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
-				assert(repl.replication_data. local_updates === 0, "0 local updates");
-				assert(repl.replication_data.remote_updates === 1, "1 remote updates");
-				assert(repl.replication_data.remote_creates === 3, "3 remote creates");
-				assert(repl.replication_data.conflicts      === 0, "0 conflicts");
+				assert(repl.replication_data.server_changes       === 4, "4 server changes");
+				assert(repl.replication_data. found_local_updates === 0, "0 found local updates");
+				assert(repl.replication_data. found_local_deletes === 0, "0 found local deletes");
+				assert(repl.replication_data.found_remote_creates === 3, "3 found remote creates");
+				assert(repl.replication_data.found_remote_updates === 1, "1 found remote updates");
+				assert(repl.replication_data.found_remote_deletes === 0, "0 found remote updates");
+				assert(repl.replication_data.found_conflicts      === 0, "0 conflicts");
+
 				repl.debug(JSON.stringify(repl.replication_data));
 				return repl.local_store.get("test_obj_1");
 			})
@@ -215,12 +220,13 @@ methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
 				return repl.replicate();
 			})
 			.then(function () {
-				assert(repl.replication_data.server_changes === 1, "1 server changes");
-				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
-				assert(repl.replication_data. local_updates === 2, "2 local updates");
-				assert(repl.replication_data.remote_updates === 1, "1 remote updates");
-				assert(repl.replication_data.remote_creates === 0, "0 remote creates");
-				assert(repl.replication_data.conflicts      === 0, "0 conflicts");
+				assert(repl.replication_data.server_changes       === 1, "1 server changes");
+				assert(repl.replication_data. found_local_updates === 2, "2 found local updates");
+				assert(repl.replication_data. found_local_deletes === 0, "0 found local deletes");
+				assert(repl.replication_data.found_remote_creates === 0, "0 found remote creates");
+				assert(repl.replication_data.found_remote_updates === 1, "1 found remote updates");
+				assert(repl.replication_data.found_remote_deletes === 0, "0 found remote updates");
+				assert(repl.replication_data.found_conflicts      === 0, "0 conflicts");
 				repl.debug(JSON.stringify(repl.replication_data));
 				return repl.local_store.get("test_obj_1");
 			})
@@ -257,12 +263,14 @@ methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
 				return repl.replicate();
 			})
 			.then(function () {
-				assert(repl.replication_data.server_changes === 1, "1 server changes");
-				assert(repl.replication_data. local_deletes === 0, "0 local deletes");
-				assert(repl.replication_data. local_updates === 1, "1 local updates");
-				assert(repl.replication_data.remote_updates === 0, "0 remote updates");
-				assert(repl.replication_data.remote_creates === 0, "0 remote creates");
-				assert(repl.replication_data.conflicts      === 1, "1 conflicts");
+				assert(repl.replication_data.server_changes       === 2, "2 server changes - includes 1 change from previous replication");
+				assert(repl.replication_data. found_local_updates === 0, "0 found local updates - the 1 local update is a conflict so not replicated");
+				assert(repl.replication_data. found_local_deletes === 0, "0 found local deletes");
+				assert(repl.replication_data.found_remote_creates === 0, "0 found remote creates");
+				assert(repl.replication_data.found_remote_updates === 0, "0 found remote updates");
+				assert(repl.replication_data.found_remote_deletes === 0, "0 found remote updates");
+				assert(repl.replication_data.found_conflicts      === 1, "1 conflicts");
+
 				repl.debug(JSON.stringify(repl.replication_data));
 				return repl.local_store.get("test_obj_1");
 			})
@@ -270,11 +278,14 @@ methods = GET,PUT,POST,HEAD,OPTIONS,DELETE
 				assert(true, "PHASE 5");							//--------------------------------------------------------------------------
 				repl.debug("local object: " + JSON.stringify(doc_obj));
 				assert(doc_obj.uuid === "test_obj_1", "local object 1 (conflict) has correct keys")
-				assert(_.isEqual(test_obj_1, doc_obj.payload), "local object 1 (conflict) payload matches");
-				assert(doc_obj.conflict, "Document marked as in conflict");
+				assert(_.isEqual(test_obj_1, doc_obj.conflict_payload), "local object 1 (conflict) payload matches");
+				assert(doc_obj.conflict_payload, "Document marked as in conflict");
 			})
 			.then(null, function (error) {
 				repl.error(error);
+			})
+			.then(function () {
+				$(".main").append("<li><b>" + count.pass + "</b> passes, <b>" + count.fail + "</b> fails</li>");
 			});
 
 
