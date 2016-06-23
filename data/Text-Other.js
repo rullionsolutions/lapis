@@ -88,45 +88,6 @@ module.exports.define("getLoVInternal", function (spec) {
 
 
 
-/**
-* To get a URL corresponding to the value of this field, if there is one; by default this
-* @return url string if produced
-*/
-module.exports.define("getURLFromVal", function () {
-    var url,
-        val = this.get();
-
-    if (this.url_pattern) {
-        url = val ? this.detokenize(this.url_pattern) : "";
-    }
-    if (url) {
-        if (this.url_expected === "internal") {     // assumed to begin "index.html?page_id=" or similar
-            try {
-                if (!this.getSession().allowedURL(url)) {    // §vani.core.7.5.2.2
-                    url = "";
-                }
-            } catch (e) {        // Assume is page_not_found exception
-                Log.report(e);
-                url = "";
-            }
-        } else if (this.url_expected === "external" && url.indexOf("http") !== 0) {
-            url = "http://" + url;
-        }
-    }
-    return url;
-});
-
-
-/**
-* To obtain the url string for this field, which is set by the last call to validate()
-* @return the value of this field's 'url' property - always a string
-*/
-module.exports.define("getURL", function () {
-    if (typeof this.url !== "string") {
-        this.url = this. getURLFromVal();
-    }
-    return this.url;
-});
 
 
 /**
@@ -150,22 +111,6 @@ module.exports.define("appendClientSideProperties", function (obj) {
     obj.auto_search_oper  = this.auto_search_oper;
 });
 
-
-
-/**
-* To compose a string of selected properties of this field and add them to a hidden span element
-* @param the XmlStream object representing the parent element to which this span should be rendered, and render_opts
-*/
-module.exports.define("addClientSideProperties", function (span /*, render_opts*/) {
-    var obj = {};
-    this.appendClientSideProperties(obj);
-    Lib.forOwn(obj, function (key, value) {
-        if (value === null || value === undefined) {
-            delete obj[key];
-        }
-    });
-    span.addChild("span", null, "css_hide css_render_data", JSON.stringify(obj));
-});
 
 
 module.exports.define("isDatabaseColumn", function () {

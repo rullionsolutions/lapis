@@ -287,3 +287,4 @@ x.base.Base.define("getNullPromise", function (resolve_arg) {
         resolve(resolve_arg);
     });
 });
+

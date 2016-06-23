@@ -1,92 +1,67 @@
 # Interface
 
 
-## base/Base 								both
-* **id **: str
-* **clone(spec)**: make a new object from this, with spec properties applied, its parent set to this, and return
-* **addPropertiesFrom(spec, include_functions)**: add properties from spec to this, including functions if include_functions
-* **forAll(funct, include_functions)**: call funct on all own and inherited properties of this, include_functions as above
-* **forOwn(funct, include_functions)**: call funct on all own properties of this, include_functions as above
-* **detokenize(str)**: replace brace-delimited tokens in str using forAll()
-* **descent()**: string (/-separated) representation of parent chain by id
-* **isDescendantOf(obj)**: return true if obj exists in parent chain, else false
-* ****: // sanity checks
-* **defineProperty(key, value)**: set this[key] = value only if key doesn't exist anywhere in proto chain, or throw Error
-* **overrideProperty(key, value)**: set this[key] = value only if key exists in proto chain but not this, or throw Error
-* **reassignProperty(key, value)**: set this[key] = value only if key exists in this, or throw Error
-* ****: // ownership
-* **add(object)**: make object a property of this using its id property, and set its owner property to this
-* **addClone(parent, spec)**: clone a new object from parent, using spec, add to this, and return
-* **walkPath(str, create_missing_objects)**: return object referenced by str (.-separated) relative to this via property chain
-* **path()**: string (.-separated) representation of owner chain by id
-* **toString()**: return this.path()
+## base/Base
 
-	// proposed new lightweight event binding API
+* inheritance: clone(spec), afterCloneType(), afterCloneInstance(), isDescendantOf(object), getObject(str)
+* property specification: define(key, value), override(key, value), reassign(key, value)
+* use in OrderedMaps: remove()
+* string output: toString(), view(format), output(str)
+* templating: detokenize(str, replaceToken, replaceNonToken), replaceToken(token)
+* sugar: throwError(str_or_spec), addProperties(spec), getNullPromise(resolve_arg)
+* random coding: getRandomNumber(to, from, decimals), getRandomString(length, array), getRandomStringArray(options)
 
-## base/EventFirer							both
-* **events**: object map of event ids (registered to this) to arrays of bound funct_prop_ids
-* **register(event_id)**: declare event string on this, so that it can be fired and functions bound to it
-* **hasEvent(event_id)**: returns true iff event_id is registered to this object or any ancestor EventFirer
-* **bind(funct_prop_id, event_id)**: bind function with property funct_prop_id on this to string event, if funct is not already
-* **unbind(funct_prop_id, event_id)**: unbind funct_prop_id function from event; function remains in this
-* **boundTo(funct_prop_id)**: returns the event_id to which the referenced function is bound, or null
-* **fire(event_id)**: call all functions bound to event_id, from top ancester EventFirer down, in order of binding
+## base/Happen
+(added to base/Base)
+* make it happen! happen(happen_id, spec, context), happenAsync(happen_id, promise, arg, context)
+* common API calls: register(happen_id), bind(funct_prop_id, happen_id), defbind(funct_prop_id, happen_id, funct)
+* less common calls: hasHappen(happen_id), unbind(funct_prop_id), boundTo(funct_prop_id)
 
-## base/OrderedMap	< base/EventFirer		both
-* **events**: add, remove, moveTo, clear
-* **clone(spec)**: overridden; call clone() on owned objects to deep-clone
-* **add(obj)**: add obj to this in sequence, must have id, sets owner to this
-* **addAll(array)**: add all objects in array to this, in order
-* **get(id)**: return object in this having given string id, or sequence number, or throw Error
-* **indexOf(id)**: return the sequence number of object having given string id, or throw Error
-* **remove(id)**: remove object in this having given string id, or sequence number, or throw Error
-* **length()**: return the number of objects in this
-* **moveTo(id, position)**: move object referenced by string or number id to given position, throw Error if outside range
-* **clear()**: remove all objects from this
-* **each(funct)**: call funct on each owned object in sequence, passing it as the single argument
+## base/Log
+(added to base/Base)
+* main logging calls: trace(str), debug(str), info(str), warn(str), error(str), fatal(str), reportException()
+* additional common API calls: setLogLevel(new_log_level), printLogCounters(), resetLogCounters()
 
-## data/FieldSet < base/OrderedMap			both
-* **modifiable **: boolean		false               Whether or not these fields can be modified (overrides their own 'editable' property
-* **modified **: boolean		false               Whether or not any of the fields have been modified, use isModified()
-* **events: **:
-* **addFields(spec_array)**:
-* **addField(spec)**: calls add, hence fires add
-* **cloneField(base_field, spec)**:
-* **getField(id)**: ** get()?
-* **getFieldCount()**: ** length() ?
-* **remove(id)**: override
-* **beforeFieldChange(field, new_val)**: replaced by event beforeChange on field object?
-* **afterFieldChange(field, old_val)**: replaced by event afterChange on field object?
-* **touch()**: set modified = true
-* **setDefaultVals()**:
-* **addValuesToObject(spec, options)**:
-* **detokenize(str)**:
-* **getTokenValue(token)**:
-* **isModified()**:
-* **setModifiable(bool)**:
-* **isModifiable()**:
-* **isValid()**:
-* **update(params)**:
-* **render(xmlstream, render_opts)**:
-* **addToPage(page, field_group)**:
-* **removeFromPage(field_group)**:
+## base/OrderedMap
+* happens: add((obj)), remove((obj)), clear
+* adding items: add(object), addAll(array)
+* get(id), indexOf(id), remove(id), length(), moveTo(id, position)
+* clear(), each(funct), sort(prop), copyFrom(source_orderedmap)
 
-## data/Entity < base/Base 				both
-* **fields          FieldSet**:
-* **deleting **: boolean		false               Whether or not this FieldSet is currently set to be deleted (only applies to records)
-* **getEntity(entity_id)**:
-* **clone(spec)**:
-* **setupPrimaryKey()**:
-* **setupDefaultOrder()**:
-* **setupParentEntity()**:
-* **getTransRow(trans, action, key, addl_data)**:
-* **getRow(key)**:
-* **setDelete(bool)**:
-* **isDelete()**:
-* **getLabel(pattern_type)**:
-* **getSearchPage()**:
-* **getDisplayPage()**:
-* **isValid()**:
-* **afterFieldChange(field, old_val)**:
-* **render(parent_elmt, render_opts, type)**:
-* **obfuscate()**:
+
+## data/FieldSet
+* happens: beforeFieldChange(({ field, new_val })), afterFieldChange(({ field, old_val }))
+* addFields(spec_array), addField(spec), cloneField(base_field, spec)
+* getField(id), getFieldCount(), remove(id)
+* isModified(), setModifiable(bool), isModifiable(), isValid()
+* touch(), setDefaultVals(), addValuesToObject(spec, options)
+* detokenize(str), getTokenValue(token)
+
+## data/Entity
+* happens: initCreate(()), initUpdate(()), load(()), afterTransChange(()), presave(())
+* getEntity(entity_id), getEntityThrowIfUnrecognized(entity_id)
+* getRecord(spec), createChildRecord(entity_id, link_field), getChildRecord(entity_id, relative_key), eachChildRecord(funct, entity_id)
+* populateFromDocument(doc_obj), populateToDocument()
+* getKey(), getLabel(), getPluralLabel()
+* setDelete(bool), isDelete()
+* getSearchPage(), getDisplayPage(), getDisplayURL()
+
+## data/Document
+* happens: beforeLoad((key)), afterLoad((doc_obj)), beforeSave(()), afterSave(())
+* load(key), create(), touch(), save(), getRecord()
+
+## data/Text
+* happens: setInitial(()), setInitialTrans(()), beforeChange(()), beforeTransChange(()), validate(()), afterChange(()), afterTransChange(())
+* get(), getNumber(default_num), isBlank()
+* set(new_val)
+* setProperty(prop_id, prop_val), isEditable(), isVisible(), setVisEdMand(visible, editable, mandatory)
+* getDataLength(), isKey()
+* isModified(), isValid(modified_only)
+* getText(), getTextFromVal()
+* renderCell(row_elem, render_opts), getCellCSSClass()
+* renderFormGroup(element, render_opts, form_type), getFormGroupCSSClass(form_type, editable)
+* getAllWidths(editable), getWidth(size, editable), getFlexboxSize()
+* renderLabel(div, render_opts, form_type), getLabelCSSClass(form_type)
+
+
+

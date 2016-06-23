@@ -33,7 +33,7 @@ x.data.fields.Number.override("set", function (new_val) {
         new_val = String(new_val);
     }
     new_val = new_val.replace(/,/g, "");
-    return Parent.set.call(this, new_val);
+    return x.data.fields.Text.set.call(this, new_val);
 });
 
 
@@ -48,7 +48,7 @@ x.data.fields.Number.defbind("validateNumber", "validate", function () {
 
     if (this.val) {
         try {
-            number_val = Lib.parseStrict(this.val, 10);
+            number_val = x.base.Format.parseStrict(this.val, 10);
             this.val = String(number_val);
             decimals = (this.val.indexOf(".") === -1) ? 0 : this.val.length - this.val.indexOf(".") - 1;
             if (decimals > this.decimal_digits) {
@@ -60,7 +60,7 @@ x.data.fields.Number.defbind("validateNumber", "validate", function () {
             this.messages.add({ type: 'E', text: e.toString(), cli_side_revalidate: true });
         }
 
-        Log.trace("Validating " + this.toString() + ", val: " + this.val + ", decimal_digits: " + this.decimal_digits +
+        this.trace("Validating " + this.toString() + ", val: " + this.val + ", decimal_digits: " + this.decimal_digits +
             ", number_val: " + number_val);
         if (this.isValid()) {
             if (typeof this.min === "number" && !isNaN(this.min) && number_val < this.min) {
@@ -79,7 +79,7 @@ x.data.fields.Number.override("getTextFromVal", function () {
         number_val;
 
     try {
-        number_val = Lib.parseStrict(val, 10);
+        number_val = x.base.Format.parseStrict(val);
         val = this.format(number_val);
     } catch (ignore) {}
     return val;
@@ -87,9 +87,9 @@ x.data.fields.Number.override("getTextFromVal", function () {
 
 
 x.data.fields.Number.define("format", function (number_val) {
-    if (this.display_format) {
-        return String((new java.text.DecimalFormat(this.display_format)).format(number_val));
-    }
+    // if (this.display_format) {
+    //     return String((new java.text.DecimalFormat(this.display_format)).format(number_val));
+    // }
     return number_val.toFixed(this.decimal_digits);
 });
 
@@ -99,7 +99,7 @@ x.data.fields.Number.define("round", function (number) {
     if (typeof number !== "number") {
         number = this.getNumber(0);
     }
-    return parseFloat(number.toFixed(this.decimal_digits), 10);
+    return x.base.Format.round(number, this.decimal_digits);
 });
 
 

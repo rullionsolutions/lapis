@@ -1,13 +1,8 @@
 /*global x, _ */
 "use strict";
 
-var Parent = require("../base/Base")
-  , Page   = require("./Page")
-  , Log    = require("../base/Log")
-//    Under  = require("underscore")
- ;
 
-module.exports = Parent.clone({
+x.ui.Page.Link = x.base.Base.clone({
     id              : "Link",
     visible         : true,                         // Whether or not this tab is shown (defaults to true)
     page_to         : null,                         // String page id for target page
@@ -23,10 +18,10 @@ module.exports = Parent.clone({
 //x.fields.Reference.renderNavOptions() calls Page.Link.isVisible() and Page.Link.renderNavOption()
 
 
-module.exports.define("getToPage", function () {
+x.ui.Page.Link.define("getToPage", function () {
     var page_to;
     if (this.page_to) {
-        page_to = Page.getPage(this.page_to);
+        page_to = x.ui.pages[this.page_to];
         if (!page_to) {
             this.throwError("unrecognized to page: " + this.page_to);
         }
@@ -35,12 +30,12 @@ module.exports.define("getToPage", function () {
 });
 
 
-module.exports.define("getKey", function (override_key) {
+x.ui.Page.Link.define("getKey", function (override_key) {
     return override_key || (this.page_key === "{page_key}" ? this.owner.page.page_key : this.page_key);
 });
 
 
-module.exports.define("getURL", function (override_key) {
+x.ui.Page.Link.define("getURL", function (override_key) {
     var url = "",
         page_to = this.getToPage();
 
@@ -61,7 +56,7 @@ module.exports.define("getURL", function (override_key) {
 });
 
 
-module.exports.define("getLabel", function () {
+x.ui.Page.Link.define("getLabel", function () {
     var page_to = this.getToPage();
     if (!this.label && page_to) {
         this.label = page_to.short_title || page_to.title;
@@ -75,21 +70,26 @@ module.exports.define("getLabel", function () {
 * @param {jquery} div element object to contain the links
 * @param {spec} render_opts
 */
-module.exports.define("render", function (parent_elmt /*, render_opts*/) {
-//    var link_elmt = parent_elmt.makeElement("a", this.css_class, this.id),
+x.ui.Page.Link.define("render", function (parent_elmt) {
     var css_class = this.css_class || "",
         page_to   = this.getToPage(),
-        link_elmt,
         url = this.getURL(),
         task_info,
         tooltip;
 
-    link_elmt = parent_elmt.makeElement("a", css_class, this.id);
+    if (!this.element) {
+        this.element = parent_elmt.makeElement("a");
+    }
+    this.element.empty();
+    if (!this.visible) {
+        css_class += " hidden";
+    }
+    this.element.attr("class", css_class);
     if (url) {
-        link_elmt.attr("href", url);
+        this.element.attr("href", url);
     }
     if (this.target) {
-        link_elmt.attr("target", this.target);
+        this.element.attr("target", this.target);
     }
     if (page_to) {
         task_info = this.owner.page.session.getPageTaskInfo(page_to.id, this.getKey());
@@ -99,14 +99,13 @@ module.exports.define("render", function (parent_elmt /*, render_opts*/) {
         if (task_info.due_date) {
             tooltip += " due on " + task_info.due_date;
         }
-        link_elmt.attr("title", tooltip);
+        this.element.attr("title", tooltip);
     }
-    link_elmt.text(this.getLabel() + (this.arrow_icon || ""));
-    return link_elmt;
+    this.element.text(this.getLabel() + (this.arrow_icon || ""));
 });
 
 
-module.exports.define("renderNavOption", function (ul_elmt, render_opts, this_val) {
+x.ui.Page.Link.define("renderNavOption", function (ul_elmt, this_val) {
     var anchor_elmt;
     if (this.nav_options !== false) {
         anchor_elmt = ul_elmt.makeElement("li").makeAnchor(this.getLabel(), this.getURL(this_val));
@@ -116,7 +115,7 @@ module.exports.define("renderNavOption", function (ul_elmt, render_opts, this_va
 
 
 // name change: getTargetRow() -> checkCachedRecord()
-module.exports.define("checkCachedRecord", function (cached_record, key) {
+x.ui.Page.Link.define("checkCachedRecord", function (cached_record, key) {
     var entity,
         page_to = this.getToPage();
 
@@ -125,7 +124,7 @@ module.exports.define("checkCachedRecord", function (cached_record, key) {
     }
     if (cached_record && page_to) {
         entity = page_to.page_key_entity || page_to.entity;
-        Log.trace("checkCachedRecord(): " + entity + ", " + key);
+        this.trace("checkCachedRecord(): " + entity + ", " + key);
         if (entity && (!cached_record.isDescendantOf(entity) || cached_record.getKey() !== key)) {
             cached_record = null;
         }
@@ -140,13 +139,13 @@ module.exports.define("checkCachedRecord", function (cached_record, key) {
 * @param {string, optional} override key
 * @return {boolean} true if the link should be shown, false otherwise
 */
-module.exports.define("isVisible", function (session, override_key, cached_record) {
+x.ui.Page.Link.define("isVisible", function (session, override_key, cached_record) {
     var key,
         page_to = this.getToPage();
 
     if (page_to) {
         key = this.getKey(override_key);
-        Log.trace("page_to: " + page_to.id + ", key: " + key);// §vani.core.7.5.1.2
+        this.trace("page_to: " + page_to.id + ", key: " + key);// §vani.core.7.5.1.2
         return (this.visible && page_to.allowed(session, key, this.checkCachedRecord(cached_record, key)).access);
     }
     return session.allowedURL(this.getURL(override_key));               // §vani.core.7.5.2.3
@@ -160,7 +159,7 @@ module.exports.define("isVisible", function (session, override_key, cached_recor
 * @param {string, optional} override key
 * @return {boolean} true if the linked page is allowed for the user, false otherwise
 */
-module.exports.define("allowed", function (session, override_key) {
+x.ui.Page.Link.define("allowed", function (session, override_key) {
     if (!this.page_to) {
         return true;
     }
@@ -171,7 +170,7 @@ module.exports.define("allowed", function (session, override_key) {
 /**
 * Create a digest object to be returned in JSON form to represent this link
 */
-module.exports.define("getJSON", function () {
+x.ui.Page.Link.define("getJSON", function () {
     var out = {};
     out.id     = this.id;
     out.url    = this.getURL();
@@ -187,29 +186,17 @@ module.exports.define("getJSON", function () {
 * @param {spec} object whose properties will be given to the newly-created link
 * @return {object} Newly-created link object
 */
-Page.links.override("add", function (spec) {
+x.ui.Page.links.override("add", function (spec) {
     var link;
     if (!spec.page_to && !spec.label) {
         this.throwError("Link page_to or label must be specified in spec: " + this + ", " + spec.id);
     }
-    link = module.exports.clone(spec);
-    require("../base/OrderedMap").add.call(this, link);
+    link = x.ui.Page.Link.clone(spec);
+    x.ui.Page.links.parent.add.call(this, link);
     return link;
 });
 
 
-Page.define("renderLinks", function (parent_elmt, render_opts) {
-    var that = this,
-        elmt;
-    this.links.each(function (link) {
-        if (link.isVisible(that.session)) {
-            elmt = elmt || parent_elmt.makeElement("div", "css_hide", "css_payload_page_links");
-            link.render(elmt, render_opts);
-        }
-    });
-});
-//Page.bind("renderLinks", "renderStart");
-
 
 //To show up in Chrome debugger...
-//@ sourceURL=page/Link.js
+//# sourceURL=page/Link.js

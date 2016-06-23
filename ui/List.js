@@ -4,18 +4,14 @@
 /**
 * The root Archetype of a list or grid section
 */
-x.ui.sections.List = x.ui.sections.Section.clone({
-    id                  : "ListBase",
+x.ui.sections.List = x.ui.sections.RecordSet.clone({
+    id                  : "List",
     columns             : x.base.OrderedMap.clone({ id: "List.columns" }),
     allow_choose_cols   : true,
     show_header         : true,
     show_footer         : true,
     right_align_numbers : true,
     hide_table_if_empty : true,
-    repeat_form         : false,
-    text_no_rows        : "no data",
-    text_one_row        : "1 row",
-    text_multi_rows     : "rows",
 //    text_total_row: "Total"
     sort_arrow_asc_icon : "&#x25B2;",
     sort_arrow_desc_icon: "&#x25BC;"
@@ -25,98 +21,37 @@ x.ui.sections.List = x.ui.sections.Section.clone({
 /**
 * Initialise the columns collection in this section object
 */
-x.ui.sections.List.defbind("cloneListBase", "cloneInstance", function () {
+x.ui.sections.List.defbind("cloneList", "cloneInstance", function () {
     this.columns = this.parent.columns.clone({ id: "List.columns", section: this });
-    this.row_count = 0;
-    this.keys = [];
 });
 
 
 /**
-* Set 'list_advanced_mode' property from session property, and 'row_select_col' if 'row_select' is given
+* Set 'list_advanced_mode' property from session property, and 'record_select_col' if 'record_select' is given
 */
-x.ui.sections.List.defbind("setAdvancedMode", "setup", function () {
-    this.list_advanced_mode = (this.owner.page.session.list_advanced_mode === true);
-});
-
+// x.ui.sections.List.defbind("setAdvancedMode", "setup", function () {
+    // this.list_advanced_mode = (this.owner.page.session.list_advanced_mode === true);
+// });
 
 
 /**
-* Set up link field relationship (requires this.query to be present)
-* @param link_field: string column id, value: string value to use in filter condition, condition is false if not supplied
+* To reset record_count property and call resetAggregations(), initializeColumnPaging(), etc
 */
-x.ui.sections.List.define("setLinkField", function (link_field, value) {
-    if (this.key_condition) {
-        this.key_condition.remove();
-    }
-    if (value) {
-        this.key_condition = this.query.addCondition({ column: "A." + link_field, operator: "=", value: value });
-    } else {
-        this.key_condition = this.query.addCondition({ full_condition: "false" });        // prevent load if no value supplied
-    }
-    if (this.columns.get(link_field)) {
-        this.columns.get(link_field).visible = false;
-    }
-});
-
-
-/**
-* Generate HTML output for this section, given its current state; calls renderBody() if 'repeat_form' else renderList()
-* @param xmlstream element object to be the parent of the section-level div element, render_opts
-* @return xmlstream div element object for the section
-*/
-x.ui.sections.List.override("render", function (element, render_opts) {
-    Parent.render.call(this, element, render_opts);
-    if (render_opts.test === true) {
-        this.test_values = [];
-    }
-    if (this.repeat_form) {
-        this.renderInitialize(render_opts);
-        return this.renderBody(render_opts);
-    }
-    this.renderList(render_opts);
-});
-
-
-/**
-* To reset row_count property and call resetAggregations(), initializeColumnPaging(), etc
-*/
-x.ui.sections.List.define("renderInitialize", function (render_opts) {
-    this.row_count = 0;
-    this.resetAggregations(render_opts);
-    this.initializeColumnPaging(render_opts);
-});
-
-
-/**
-* Generate HTML table output, reset counters, call renderHeader, renderBody, and then renderFooter
-* @param xmlstream element object to be the parent of the table element, render_opts
-* @return xmlstream table element object
-*/
-x.ui.sections.List.define("renderList", function (render_opts) {
-    this.renderInitialize(render_opts);
+x.ui.sections.List.defbind("renderStart", "renderBeforeRecords", function () {
+    this.resetAggregations();
     this.table_elem = null;
     if (!this.hide_table_if_empty) {
-        this.getTableElement(render_opts);
-    }
-    this.renderBody(render_opts);
-    if (this.sctn_elem) {
-        if (!this.table_elem && this.row_count === 0) {
-//            this.sctn_elem.addText(this.text_no_rows);
-            this.renderNoRows(render_opts);
-        } else if (this.table_elem && (this.show_footer || this.bulk_actions)) {
-            this.renderFooter(this.table_elem, render_opts);
-        }
+        this.getTableElement();
     }
 });
 
 
 /**
 * To return the 'table_elem' XmlStream object for the HTML table, creating it if it doesn't already exist
-* @param render_opts
+* @param
 * @return table_elem XmlStream object for the HTML table
 */
-x.ui.sections.List.define("getTableElement", function (render_opts) {
+x.ui.sections.List.define("getTableElement", function () {
     var css_class;
 
     if (!this.table_elem) {
@@ -131,7 +66,7 @@ x.ui.sections.List.define("getTableElement", function (render_opts) {
         this.table_elem = this.getSectionElement().makeElement("table", css_class, this.id);
 
         if (this.show_header) {
-            this.renderHeader(this.table_elem, render_opts);
+            this.renderHeader(this.table_elem);
         }
     }
     return this.table_elem;
@@ -149,23 +84,23 @@ x.ui.sections.List.define("getActualColumns", function () {
 
 /**
 * To generate the HTML thead element and its content, calling renderHeader() on each visible column
-* @param xmlstream table element object, render_opts
+* @param xmlstream table element object,
 * @return row_elem xmlstream object representing the th row
 */
-x.ui.sections.List.define("renderHeader", function (table_elem, render_opts) {
+x.ui.sections.List.define("renderHeader", function (table_elem) {
     var thead_elem,
         row_elem,
         total_visible_columns = 0;
 
-    thead_elem = table_elem.addChild("thead");
+    thead_elem = table_elem.makeElement("thead");
     if (this.show_col_groups) {
-        this.renderColumnGroupHeadings(thead_elem, render_opts);
+        this.renderColumnGroupHeadings(thead_elem);
     }
 
-    row_elem = this.renderHeaderRow(thead_elem, render_opts);
+    row_elem = this.renderHeaderRow(thead_elem);
     this.columns.each(function (col) {
-        if (col.isVisibleColumn(render_opts)) {
-            col.renderHeader(row_elem, render_opts);
+        if (col.isVisibleColumn()) {
+            col.renderHeader(row_elem);
             total_visible_columns += 1;
         }
     });
@@ -174,32 +109,32 @@ x.ui.sections.List.define("renderHeader", function (table_elem, render_opts) {
 });
 
 
-x.ui.sections.List.define("renderHeaderRow", function (thead_elem, render_opts) {
-    var row_elem = thead_elem.addChild("tr"),
+x.ui.sections.List.define("renderHeaderRow", function (thead_elem) {
+    var row_elem = thead_elem.makeElement("tr"),
         i;
 
     for (i = 0; i < this.level_break_depth; i += 1) {
-        row_elem.addChild("th", null, "css_level_break_header");
+        row_elem.makeElement("th", "css_level_break_header");
     }
     return row_elem;
 });
 
 
-x.ui.sections.List.define("renderColumnGroupHeadings", function (thead_elem, render_opts) {
-    var row_elem = this.renderHeaderRow(thead_elem, render_opts),
+x.ui.sections.List.define("renderColumnGroupHeadings", function (thead_elem) {
+    var row_elem = this.renderHeaderRow(thead_elem),
         group_label = "",
         colspan = 0;
 
     function outputColGroup() {
         var th_elem;
         if (colspan > 0) {
-            th_elem = row_elem.addChild("th", null, "css_col_group_header");
-            th_elem.attribute("colspan", String(colspan));
-            th_elem.addText(group_label);
+            th_elem = row_elem.makeElement("th", "css_col_group_header");
+            th_elem.attr("colspan", String(colspan));
+            th_elem.text(group_label);
         }
     }
     this.columns.each(function (col) {
-        if (col.isVisibleColumn(render_opts)) {
+        if (col.isVisibleColumn()) {
             if (typeof col.group_label === "string" && col.group_label !== group_label) {
                 outputColGroup();
                 group_label = col.group_label;
@@ -213,110 +148,56 @@ x.ui.sections.List.define("renderColumnGroupHeadings", function (thead_elem, ren
 
 
 /**
-* To generate a repeating-block view of the data (not implemented yet)
-* @param render opts
-*/
-x.ui.sections.List.define("renderBody", function (render_opts) {
-    return undefined;
-});
-
-
-/**
 * To render an object (usually a fieldset) as a row in the table by calling renderListRow(), or as a form by
-* @param render_opts, row_obj object (usually a fieldset) used by renderListRow() or renderRepeatForm()
+* @param , row_obj object (usually a fieldset) used by renderListRow() or renderRepeatForm()
 */
-x.ui.sections.List.define("renderRow", function (render_opts, row_obj) {
+x.ui.sections.List.override("renderRecord", function (record) {
     var table_elem,
-        obj = {};
-
-    if (render_opts.test === true) {
-        row_obj.each(function (f) {
-            obj[f.id] = f.get();
-        });
-        this.test_values.push(obj);
-    }
-    table_elem = this.getTableElement(render_opts);
-    if (this.repeat_form) {
-        return this.renderRepeatForm(table_elem, render_opts, row_obj);    // element is div
-    }
-    return this.renderListRow(table_elem, render_opts, row_obj);        // element is table
-});
-
-
-/**
-* To render an object (usually a fieldset) as an HTML tr element, calling getRowCSSClass(), rowURL()
-* @param table_elem (xmlstream), render_opts, row_obj
-* @return row_elem (xmlstream)
-*/
-x.ui.sections.List.define("renderListRow", function (table_elem, render_opts, row_obj) {
-    var row_elem,
         css_class,
+        row_elem,
         i;
 
-    css_class = this.getRowCSSClass(row_obj);
-//    this.updateAggregations();
-    row_elem = table_elem.addChild("tr", null, css_class);
-    this.rowURL(row_elem, row_obj);
-    this.addRowToKeyArray(row_obj);
+    table_elem = this.getTableElement();
+    css_class  = this.getRowCSSClass(record);
+    row_elem   = table_elem.makeElement("tr", css_class);
+    this.rowURL(row_elem, record);
     for (i = 0; i < this.level_break_depth; i += 1) {
-        row_elem.addChild("td");
+        row_elem.makeElement("td");
     }
     for (i = 0; i < this.columns.length(); i += 1) {
-        if (this.columns.get(i).isVisibleColumn(render_opts)) {
-            this.columns.get(i).renderCell(row_elem, render_opts, i, row_obj);
+        if (this.columns.get(i).isVisibleColumn()) {
+            this.columns.get(i).renderCell(row_elem, i, record);
         }
     }
     for (i = 0; i < this.columns.length(); i += 1) {
-        this.columns.get(i).renderAdditionalRow(table_elem, render_opts, i, row_obj, css_class);
+        this.columns.get(i).renderAdditionalRow(table_elem, i, record, css_class);
     }
     return row_elem;
 });
 
 
 /**
-* To render elements displayed in the event that the list thas no rows. By default this will be the text_no_rows but can be overridden to display addition elements.
-* @param render_opts
-*/
-x.ui.sections.List.define("renderNoRows", function (render_opts) {
-    this.sctn_elem.addText(this.text_no_rows);
-});
-
-
-/**
 * To return the CSS class string for the tr object - 'css_row_even' or 'css_row_odd' for row striping
-* @param row_obj
+* @param record
 * @return CSS class string
 */
-x.ui.sections.List.define("getRowCSSClass", function (row_obj) {
-    var str = (this.row_count % 2 === 0) ? "css_row_even" : "css_row_odd";
-    // if (row_obj && typeof row_obj.getKey === "function") {
-    //     if (this.isRowSelected(row_obj.getKey())) {
-    //         str += " css_mr_selected";
-    //     }
-    // }
+x.ui.sections.List.define("getRowCSSClass", function (/*record*/) {
+    var str = (this.getRecordCount() % 2 === 0) ? "css_row_even" : "css_row_odd";
     return str;
 });
 
 
 /**
 * To return a string URL for the row, if appropriate
-* @param row_elem (xmlstream), row_obj (usually a fieldset)
+* @param row_elem (xmlstream), record (usually a fieldset)
 * @return string URL or null or undefined
 */
-x.ui.sections.List.define("rowURL", function (row_elem, row_obj) {
-    if (row_obj && typeof row_obj.getKey === "function") {
-        row_elem.attribute("data-key", row_obj.getKey());
+x.ui.sections.List.define("rowURL", function (row_elem, record) {
+    if (record && typeof record.getKey === "function") {
+        row_elem.attr("data-key", record.getKey());
     }
 });
 
-
-/**
-* To add a key string to the internal array of shown row keys
-* @param row_obj (usually a fieldset)
-*/
-x.ui.sections.List.define("addRowToKeyArray", function (row_obj) {
-    return undefined;
-});
 
 
 x.ui.sections.List.define("getColumnVisibility", function () {
@@ -349,41 +230,48 @@ x.ui.sections.List.define("setColumnVisibility", function (params) {
 });
 
 
+
+x.ui.sections.List.defbind("renderEnd", "renderAfterRecords", function () {
+    if (this.element) {
+        if (!this.table_elem && this.getRecordCount() === 0) {
+//            this.sctn_elem.text(this.text_no_records);
+            this.renderNoRecords();
+        } else if (this.table_elem && (this.show_footer || this.bulk_actions)) {
+            this.renderFooter(this.table_elem);
+        }
+    }
+});
+
+
 /**
 * To render the table footer, as a containing div, calling renderRowAdder(), render the column-chooser icon,
-* @param sctn_elem (xmlstream), render_opts
+* @param sctn_elem (xmlstream),
 * @return foot_elem (xmlstream) if dynamic
 */
-x.ui.sections.List.define("renderFooter", function (table_elem, render_opts) {
+x.ui.sections.List.define("renderFooter", function (table_elem) {
     var foot_elem,
-        cell_elem,
-        ctrl_elem;
+        cell_elem;
 
-//    foot_elem = sctn_elem.addChild("div", null, "css_list_footer");
+//    foot_elem = sctn_elem.makeElement("div", "css_list_footer");
     if (this.bulk_actions && Object.keys(this.bulk_actions).length > 0) {
-        foot_elem = table_elem.addChild("tfoot");
-        this.renderBulk(foot_elem, render_opts);
+        foot_elem = table_elem.makeElement("tfoot");
+        this.renderBulk(foot_elem);
     }
     if (this.show_footer) {
         if (!foot_elem) {
-            foot_elem = table_elem.addChild("tfoot");
+            foot_elem = table_elem.makeElement("tfoot");
         }
-        cell_elem = foot_elem.addChild("tr").addChild("td");
-        cell_elem.attribute("colspan", String(this.getActualColumns()));
-        if (render_opts.dynamic_page !== false) {
-            this.renderRowAdder(cell_elem, render_opts);
-            this.renderListPager(cell_elem, render_opts);
-            this.renderColumnPager(cell_elem, render_opts);
+        cell_elem = foot_elem.makeElement("tr").makeElement("td");
+        cell_elem.attr("colspan", String(this.getActualColumns()));
+        if (this.isDynamic()) {
+            this.renderRecordAdder(cell_elem);
+            this.renderListPager(cell_elem);
+            // this.renderColumnPager(cell_elem);
             if (this.list_advanced_mode && this.allow_choose_cols) {
-                ctrl_elem = cell_elem.makeElement("span", "css_list_col_chooser");
-                ctrl_elem.attribute("onclick", "x.ui.listColumnChooser(this)");
-                ctrl_elem.addChild("a", "list_choose_cols_" + this.id, "css_uni_icon_lrg")
-                    .attribute("title", "Choose Columns to View")
-                    .addText(this.column_chooser_icon, true);
-                this.renderColumnChooser(cell_elem, render_opts);
+                this.renderColumnChooser(cell_elem);
             }
         } else {
-            this.renderRowCount(cell_elem, render_opts);
+            this.renderRecordCount(cell_elem);
         }
     }
     return foot_elem;
@@ -391,40 +279,22 @@ x.ui.sections.List.define("renderFooter", function (table_elem, render_opts) {
 
 
 /**
-* To render the control for adding rows (either a 'plus' type button or a drop-down of keys) if appropriate
+* To render the control for adding records (either a 'plus' type button or a drop-down of keys) if appropriate
 * @param foot_elem (xmlstream), render_opts
 */
-x.ui.sections.List.define("renderRowAdder", function (foot_elem, render_opts) {
+x.ui.sections.List.define("renderRecordAdder", function (/*foot_elem*/) {
     return undefined;
 });
 
 /**
-* To render a simple span showing the number of rows, and the sub-set shown, if appropriate
+* To render a simple span showing the number of records, and the sub-set shown, if appropriate
 * @param foot_elem (xmlstream), render_opts
 */
-x.ui.sections.List.define("renderRowCount", function (foot_elem, render_opts) {
-    var text;
-
-    if (this.recordset === 1 && !this.subsequent_recordset) {
-        if (this.row_count === 0) {
-            text = this.text_no_rows;
-        } else if (this.row_count === 1) {
-            text = this.text_one_row;
-        } else {
-            text = this.row_count + " " + this.text_multi_rows;
-        }
-    } else {
-        if (this.frst_record_in_set && this.last_record_in_set) {
-            text = "rows " + this.frst_record_in_set + " - " + this.last_record_in_set;
-            if (!this.open_ended_recordset && this.found_rows && this.recordset_size < this.found_rows) {
-                text += " of " + this.found_rows;
-            }
-        } else {
-            text = this.row_count + " rows";
-        }
-    }
-    return foot_elem.addChild("span", null, "css_list_rowcount", text);
+x.ui.sections.List.define("renderRecordCount", function (foot_elem) {
+    return foot_elem.makeElement("span", "css_list_recordcount").text(this.getRecordCountText());
 });
+
+
 
 x.ui.sections.List.define("outputNavLinks", function (page_key, details_elmt) {
     var index;
@@ -458,13 +328,13 @@ x.ui.sections.List.define("outputNavLinks", function (page_key, details_elmt) {
 /**
 * Reset column aggregation counters
 */
-x.ui.sections.List.define("resetAggregations", function (render_opts) {
-    var text_total_row = "",
+x.ui.sections.List.define("resetAggregations", function () {
+    var text_total_record = "",
         delim = "";
 
     function updateTextTotalRow(col_aggregation, aggr_id, aggr_label) {
-        if (col_aggregation === aggr_id && text_total_row.indexOf(aggr_label) === -1) {
-            text_total_row += delim + aggr_label;
+        if (col_aggregation === aggr_id && text_total_record.indexOf(aggr_label) === -1) {
+            text_total_record += delim + aggr_label;
             delim = " / ";
         }
     }
@@ -476,15 +346,15 @@ x.ui.sections.List.define("resetAggregations", function (render_opts) {
             updateTextTotalRow(col.aggregation, "C", "counts");
         }
     });
-    if (!this.text_total_row) {
-        this.text_total_row = text_total_row;
+    if (!this.text_total_record) {
+        this.text_total_record = text_total_record;
     }
 });
 
 
 /**
 * Update column aggregation counters with this record's values
-* @param Record obj representing current row
+* @param Record obj representing current record
 */
 x.ui.sections.List.define("updateAggregations", function () {
     this.columns.each(function(col) {
@@ -502,7 +372,7 @@ x.ui.sections.List.define("updateAggregations", function () {
 * Show a total row at bottom of table if any visible column is set to aggregate
 * @param xmlstream element object for the table, render_opts
 */
-x.ui.sections.List.define("renderAggregations", function (render_opts) {
+x.ui.sections.List.define("renderAggregations", function () {
     var first_aggr_col = -1,
         pre_aggr_colspan = 0,
         row_elem,
@@ -511,7 +381,7 @@ x.ui.sections.List.define("renderAggregations", function (render_opts) {
 
     for (i = 0; i < this.columns.length(); i += 1) {
         col = this.columns.get(i);
-        if (col.isVisibleColumn(render_opts)) {
+        if (col.isVisibleColumn()) {
             if (col.aggregation && col.aggregation !== "N") {
                 first_aggr_col = i;
                 break;
@@ -522,12 +392,12 @@ x.ui.sections.List.define("renderAggregations", function (render_opts) {
     if (first_aggr_col === -1) {        // no aggregation
         return;
     }
-    row_elem = this.getTableElement(render_opts).addChild("tr", null, "css_row_total");
+    row_elem = this.getTableElement().makeElement("tr", "css_record_total");
     if (pre_aggr_colspan > 0) {
-        row_elem.addChild("td").attribute("colspan", pre_aggr_colspan.toFixed(0)).addText(this.text_total_row);
+        row_elem.makeElement("td").attr("colspan", pre_aggr_colspan.toFixed(0)).text(this.text_total_record);
     }
     for (i = first_aggr_col; i < this.columns.length(); i += 1) {
-        this.columns.get(i).renderAggregation(row_elem, render_opts, 0, this.row_count);
+        this.columns.get(i).renderAggregation(row_elem, 0, this.getRecordCount());
     }
 });
 
@@ -569,7 +439,7 @@ x.ui.sections.List.columns.override("add", function (col_spec) {
         this.section.show_col_groups = true;
     }
 //    column = x.ui.sections.List.Column.clone(col_spec);
-    column = require("./ListBase.Column").clone(col_spec);//Allows section specific column overrides to have an affect
+    column = x.ui.sections.List.Column.clone(col_spec);//Allows section specific column overrides to have an affect
     x.base.OrderedMap.add.call(this, column);
     return column;
 });

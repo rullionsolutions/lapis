@@ -53,7 +53,7 @@ x.data.fields.Text.define("validate", function () {
     if (this.messages) {
         this.messages.clear();
     } else {
-        this.messages = require("../session/MessageManager.Field").clone({ id: this.id, field: this, prefix: this.label });
+        this.messages = x.ui.MessageManager.clone({ id: this.id, field: this, prefix: this.label, instance: true });
     }
 //    this.text = this.getTextFromVal();
 //    this.url  = this. getURLFromVal();

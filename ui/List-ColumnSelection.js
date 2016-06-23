@@ -2,6 +2,8 @@
 
 
     column_chooser_icon : "&#x2630;",        //"&#8251;",
+    prev_columnset_icon : "&#x25C1;",
+    next_columnset_icon : "&#x25B7;"
 
 
 /**
@@ -44,12 +46,12 @@ x.ui.sections.List.defbind("updateColSelection", "update", function (params) {
 * To set-up column paging if specified
 * @param render_opts
 */
-x.ui.sections.List.define("initializeColumnPaging", function (render_opts) {
+x.ui.sections.List.defbind("renderStart", "initializeColumnPaging", function () {
     var     sticky_cols = 0,
         non_sticky_cols = 0;
     if (this.max_visible_columns) {
         this.columns.eacsh(function(col) {
-            if (col.isVisibleDisregardingColumnPaging(render_opts)) {
+            if (col.isVisibleDisregardingColumnPaging()) {
                 if (col.sticky) {
                     sticky_cols += 1;
                 } else {
@@ -70,29 +72,29 @@ x.ui.sections.List.define("initializeColumnPaging", function (render_opts) {
 
 /**
 * To render the player-style control for column pages back and forth through groups of non-sticky visible columns, if appropriate
-* @param foot_elem (xmlstream), render_opts
+* @param foot_elem (xmlstream)
 */
-x.ui.sections.List.define("renderColumnPager", function (foot_elem, render_opts) {
+x.ui.sections.List.define("renderColumnPager", function (foot_elem) {
     var pagr_elem,
         ctrl_elem;
 
     if (!this.max_visible_columns) {
         return;
     }
-    pagr_elem = foot_elem.addChild("span", null, "css_column_pager");
-    ctrl_elem = pagr_elem.addChild("span", null, "css_list_control");
+    pagr_elem = foot_elem.makeElement("span", "css_column_pager");
+    ctrl_elem = pagr_elem.makeElement("span", "css_list_control");
     if (this.current_column_page > 0) {
-        ctrl_elem.addChild("a", "column_page_prev_" + this.id, "css_cmd css_uni_icon")
-            .attribute("title", "previous column page")
-            .addText(this.prev_columnset_icon, true);
+        ctrl_elem.makeElement("a", "css_cmd css_uni_icon", "column_page_prev_" + this.id)
+            .attr("title", "previous column page")
+            .text(this.prev_columnset_icon, true);
     }
-    pagr_elem.addChild("span", null, "css_list_rowcount", "column page " + (this.current_column_page + 1) + " of " + this.total_column_pages);
+    pagr_elem.makeElement("span", "css_list_rowcount", "column page " + (this.current_column_page + 1) + " of " + this.total_column_pages);
 
     if ((this.current_column_page + 1) < this.total_column_pages) {
-        ctrl_elem = pagr_elem.addChild("span", null, "css_list_control");
-        ctrl_elem.addChild("a", "column_page_next_" + this.id, "css_cmd css_uni_icon")
-            .attribute("title", "next column page")
-            .addText(this.next_columnset_icon, true);
+        ctrl_elem = pagr_elem.makeElement("span", "css_list_control");
+        ctrl_elem.makeElement("a", "css_cmd css_uni_icon", "column_page_next_" + this.id)
+            .attr("title", "next column page")
+            .text(this.next_columnset_icon, true);
     }
 });
 
@@ -102,35 +104,39 @@ x.ui.sections.List.define("renderColumnPager", function (foot_elem, render_opts)
 
 /**
 * To render a column-chooser control (a set of push-state buttons represents all available columns, with the
-* @param foot_elem (xmlstream), render_opts
+* @param foot_elem (xmlstream)
 */
-x.ui.sections.List.define("renderColumnChooser", function (foot_elem, render_opts) {
+x.ui.sections.List.define("renderColumnChooser", function (foot_elem) {
     var ctrl_elem,
         filter_elem,
 //        filter_input,
         i;
 
-    if (this.allow_choose_cols) {
-          ctrl_elem = foot_elem.makeElement("div", "css_list_choose_cols" + (this.show_choose_cols ? "" : " css_hide"));
-        filter_elem = ctrl_elem.makeElement("span", "css_list_cols_filter");
-        filter_elem.makeInput("text", "cols_filter_" + this.id, this.cols_filter, "css_list_cols_filter input-medium")
-            .attr("placeholder", "Filter Columns");
+    ctrl_elem = foot_elem.makeElement("span", "css_list_col_chooser");
+    ctrl_elem.attr("onclick", "x.ui.listColumnChooser(this)");
+    ctrl_elem.makeElement("a", "css_uni_icon_lrg", "list_choose_cols_" + this.id)
+        .attr("title", "Choose Columns to View")
+        .text(this.column_chooser_icon, true);
 
-        for (i = 0; i < this.columns.length(); i += 1) {
-            this.renderColumnChooserColumn(ctrl_elem, render_opts, this.columns.get(i));
-        }
+      ctrl_elem = foot_elem.makeElement("div" , "css_list_choose_cols" + (this.show_choose_cols ? "" : " css_hide"));
+    filter_elem = ctrl_elem.makeElement("span", "css_list_cols_filter");
+    filter_elem.makeInput("text", "cols_filter_" + this.id, this.cols_filter, "css_list_cols_filter input-medium")
+        .attr("placeholder", "Filter Columns");
+
+    for (i = 0; i < this.columns.length(); i += 1) {
+        this.renderColumnChooserColumn(ctrl_elem, this.columns.get(i));
     }
 });
 
 
-x.ui.sections.List.define("renderColumnChooserColumn", function (ctrl_elem, render_opts, col) {
+x.ui.sections.List.define("renderColumnChooserColumn", function (ctrl_elem, col) {
     if (!Lib.trim(col.label)) {
         return;
     }
-    ctrl_elem.addChild("button", "list_" + this.id + "_col_" + col.id + (col.visible ? "_hide" : "_show"),
-            "btn btn-mini css_cmd " + (col.visible ? "active" : ""))        /* TB3 btn-xs */
-        .attribute("type", "button")
-        .attribute("data-toggle", "button")
-        .addText(col.label);
+    ctrl_elem.makeElement("button", "btn btn-mini css_cmd " + (col.visible ? "active" : ""),
+            "list_" + this.id + "_col_" + col.id + (col.visible ? "_hide" : "_show"))        /* TB3 btn-xs */
+        .attr("type", "button")
+        .attr("data-toggle", "button")
+        .text(col.label);
 });
 

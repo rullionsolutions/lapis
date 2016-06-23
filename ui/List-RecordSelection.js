@@ -58,11 +58,11 @@ x.ui.sections.List.define("addSelectionColumn", function () {
     this.columns.moveTo("_row_selection", 0);
 
     /*Override Start*/
-    this.selection_col.renderHeader = function (row_elmt, render_opts) {
+    this.selection_col.renderHeader = function (row_elmt) {
         var elmt = row_elmt.makeElement("th", "css_mr_sel");
         elmt.makeElement("span", "icon icon-ok");
     };
-    this.selection_col.renderCell = function renderCell(row_elem, render_opts, i, row_obj) {
+    this.selection_col.renderCell = function renderCell(row_elem, i, row_obj) {
         var td = row_elem.makeElement("td", "css_mr_sel");
         td.makeElement("span", "icon icon-ok");
     };
@@ -86,17 +86,17 @@ x.ui.sections.List.defbind("updateRowSelection", "update", function (params) {
 
 
 
-x.ui.sections.List.define("renderBulk", function (foot_elem, render_opts) {
+x.ui.sections.List.define("renderBulk", function (foot_elem) {
     var cell_elem,
         that = this;
 
-    cell_elem = foot_elem.addChild("tr", null, "css_mr_actions").addChild("td");
-    cell_elem.attribute("colspan", String(this.getActualColumns()));
+    cell_elem = foot_elem.makeElement("tr", "css_mr_actions").makeElement("td");
+    cell_elem.attr("colspan", String(this.getActualColumns()));
     cell_elem.makeHidden("list_" + this.id + "_mr_selected", JSON.stringify(this.selected_keys || []));
-    // cell_elem.addChild("input")
-    //     .attribute("name" , "list_" + this.id + "_mr_selected")
-    //     .attribute("type" , "hidden")
-    //     .attribute("value", JSON.stringify(this.selected_keys || []));
+    // cell_elem.makeElement("input")
+    //     .attr("name" , "list_" + this.id + "_mr_selected")
+    //     .attr("type" , "hidden")
+    //     .attr("value", JSON.stringify(this.selected_keys || []));
 
     Lib.forOwn(this.bulk_actions, function (key, value) {
         if (value.visible && Page.getPage(value.target_page)) {
@@ -104,9 +104,9 @@ x.ui.sections.List.define("renderBulk", function (foot_elem, render_opts) {
                 "modal?page_id=" + value.target_page + "&page_key=" + that.owner.page.page_key /*+ that.getReferURLParams()*/,
                 "btn btn-mini css_bulk disabled");
 
-            // cell_elem.addChild("a", null, "btn btn-mini css_bulk css_open_in_modal disabled")
-            //     .attribute("href", "?page_id=" + value.target_page + "&page_key=" + that.owner.page.page_key + that.getReferURLParams())
-            //     .addText(value.button_label, true);
+            // cell_elem.makeElement("a", "btn btn-mini css_bulk css_open_in_modal disabled")
+            //     .attr("href", "?page_id=" + value.target_page + "&page_key=" + that.owner.page.page_key + that.getReferURLParams())
+            //     .text(value.button_label, true);
         }
     });
     return cell_elem;

@@ -1,18 +1,13 @@
 /*global x, _ */
 "use strict";
 
+x.data.entities = {};                      // singleton - not to be cloned!
+
 /**
 * To represent a record in a database table
 */
 x.data.Entity = x.data.FieldSet.clone({
     id                      : "Entity",
-    db_record_exists        : false,                    // whether or not a corresponding record exists in the db
-    db_record_locked        : false,                    // whether or not we have a lock on the db record
-    duplicate_key           : false,
-    export_sql_block        : 100,
-    use_query_cache         : true,
-    using_max_key_table     : false,
-    entities                : x.base.OrderedMap.clone({ id: "entities" }),          // singleton - not to be cloned!
     data_volume_oom         : null                      // expected data size as a power of 10
 });
 
@@ -21,24 +16,57 @@ x.data.Entity = x.data.FieldSet.clone({
 x.data.Entity.register("initCreate");
 x.data.Entity.register("initUpdate");
 x.data.Entity.register("load");
-x.data.Entity.register("reload");
 x.data.Entity.register("afterTransChange");
 x.data.Entity.register("presave");
 
 
 
 x.data.Entity.defbind("setupEntity", "cloneType", function () {
-    this.table = this.table || this.id;
-    if (this.parent_entity) {            // parent_entity MUST be loaded first
-        this.trace("Linking " + this.id + " to its parent " + this.parent_entity );
-        if (!this.getEntity(this.parent_entity)) {          // parent entities will have to be loaded before their children!
-            this.throwError("invalid parent entity");
-        }
-        if (!this.getEntity(this.parent_entity).children) {
-            this.getEntity(this.parent_entity).children = {};
-        }
-        this.getEntity(this.parent_entity).children[this.id] = this;
+    if (x.data.entities[this.id]) {
+        this.throwError("entity already defined: " + this.id);
     }
+    x.data.entities[this.id] = this;
+    this.children = {};                     // map of Entity objects
+    if (this.parent_entity) {               // parent_entity MUST be loaded first
+        this.trace("Linking " + this.id + " to its parent " + this.parent_entity );
+        // parent entities will have to be loaded before their children!
+        this.getEntityThrowIfUnrecognized(this.parent_entity).children[this.id] = this;
+    }
+});
+
+
+x.data.Entity.defbind("setupRecord", "cloneInstance", function () {
+    var that = this,
+        key_fields;
+
+    if (!this.children) {
+        return;
+    }
+    this.children = {};                     // map of arrays of record objects
+    _.each(this.parent.children, function (ignore /*entity*/, entity_id) {
+        that.children[entity_id] = [];
+    });
+    if (this.primary_key) {
+        key_fields = this.primary_key.split(",");
+        this.primary_key = [];
+        _.each(key_fields, function (key_field) {
+            that.primary_key.push(that.getField(key_field));
+        });
+    }
+});
+
+
+x.data.Entity.define("getEntity", function (entity_id) {
+    return x.data.entities[entity_id];
+});
+
+
+x.data.Entity.define("getEntityThrowIfUnrecognized", function (entity_id) {
+    var entity = this.getEntity(entity_id);
+    if (!entity) {
+        this.throwError("Entity not recognized: " + entity_id);
+    }
+    return entity;
 });
 
 
@@ -51,45 +79,133 @@ x.data.Entity.define("getRecord", function (spec) {
 });
 
 
-x.data.Entity.define("getRow", function (arg, connection) {
-    var row,
-        obj = this;
-
-    if (obj.instance) {
-        obj = obj.parent;
-    }
-    row = obj.clone({
-        id: obj.id,
-        connection: connection,         // transactional connection
-        modifiable: false,
-        instance: true
+x.data.Entity.define("populateFromDocument", function (doc_obj) {
+    var that = this;
+    this.each(function (field) {
+        if (typeof doc_obj[field.id] === "string") {
+            field.setInitial(doc_obj[field.id]);
+        }
     });
-    if (typeof arg === "string") {
-        row.load(arg);          // throws 'Record not found' if not found
-    } else if (arg && arg.resultset) {
-        row.populate(arg.resultset);
-        row.db_record_exists = true;
-    } else {
-        this.throwError("invalid argument: " + arg);
+    // this.uuid = doc_obj.uuid;
+    if (!this.children) {
+        return;
     }
-    return row;
+    _.each(this.parent.children, function (entity, entity_id) {
+        if (doc_obj[entity_id] && doc_obj[entity_id].length > 0) {
+            that.children[entity_id] = [];
+            _.each(doc_obj[entity_id], function (doc_obj_sub) {
+                var record = entity.getRecord();
+                record.populateFromDocument(doc_obj_sub);
+                record.happen("initUpdate");
+                that.children[entity_id].push(record);
+            });
+        }
+    });
 });
 
 
-
-x.data.Entity.define("getKey", function () {
-    var key_fields = this.primary_key.split(","),
-        delim = "",
-        i;
-
-    if (!this.key) {
-        this.key = "";
-        for (i = 0; i < key_fields.length; i += 1) {
-            this.key += delim + this.getField(key_fields[i]).get();
-            delim = ".";
+x.data.Entity.define("populateToDocument", function () {
+    var new_obj = {};
+    this.each(function (field) {
+        if (!field.isBlank()) {
+            new_obj[field.id] = field.get();
         }
+    });
+    new_obj.uuid = this.getUUID();
+    if (!new_obj.uuid || typeof new_obj.uuid !== "string") {
+        this.throwError("invalid uuid: " + new_obj.uuid);
     }
-    return this.key;
+    _.each(this.children, function (record_array) {
+        _.each(record_array, function (record) {
+            if (!new_obj[record.parent.id]) {
+                new_obj[record.parent.id] = [];
+            }
+            new_obj[record.parent.id].push(record.populateToDocument());
+        });
+    });
+    return new_obj;
+});
+
+
+x.data.Entity.define("createChildRecord", function (entity_id, link_field) {
+    var record;
+    if (!this.parent.children || !this.parent.children[entity_id]) {
+        this.throwError("invalid entity_id: " + entity_id);
+    }
+    record = this.parent.children[entity_id].getRecord({ modifiable: true });
+    this.children[entity_id] = this.children[entity_id] || [];
+    this.children[entity_id].push(record);
+    record.setDefaultVals();
+    record.linkToParent(this, link_field);
+    record.happen("initCreate");
+    return record;
+});
+
+
+x.data.Entity.define("linkToParent", function (parent_record, link_field) {
+    // if (!this.db_record_exists && parent_record && link_field) {
+    this.parent_record = parent_record;         // support key change linkage
+    this.trans_link_field = link_field;         // invoked when keyChange() calls trans.addToCache()
+    // }
+});
+
+
+x.data.Entity.define("getChildRecord", function (entity_id, relative_key) {
+    var found_record;
+    this.eachChildRecord(function (record) {
+        if (record.getRelativeKey() === relative_key) {
+            found_record = record;
+        }
+    }, entity_id);
+    return found_record;
+});
+
+
+x.data.Entity.define("eachChildRecord", function (funct, entity_id) {
+    var that = this;
+    if (entity_id) {
+        _.each(this.children[entity_id], function (record) {
+            funct(record);
+        });
+    } else {
+        _.each(this.children, function (ignore /*record_array*/, temp_entity_id) {
+            that.eachChildRecord(funct, temp_entity_id);
+        });
+    }
+});
+
+
+x.data.Entity.define("getRelativeKey", function () {
+    var that  = this,
+          out = "",
+        delim = "";
+
+    if (!this.primary_key || this.primary_key.length === 0) {
+        this.throwError("primary key has no fields");
+    }
+    _.each(this.primary_key, function (key_field) {
+        if (key_field.isBlank()) {
+            that.throwError("primary key field is blank: " + key_field.id);
+        }
+        out += delim + key_field.get();
+        delim = ".";
+    });
+    return out;
+});
+
+
+x.data.Entity.define("getFullKey", function () {
+    var out = "";
+    if (this.parent_record) {
+        out = this.parent_record.getFullKey() + ".";
+    }
+    out += this.getRelativeKey();
+    return out;
+});
+
+
+x.data.Entity.define("getUUID", function () {
+    return this.id + ":" + this.getFullKey();
 });
 
 
@@ -130,121 +246,8 @@ x.data.Entity.define("getDisplayPage", function () {
 
 
 x.data.Entity.define("getDisplayURL", function (key) {
-    if (typeof key !== "string") {
-        key = this.getKey();
-    }
-    this.checkKey(key);            // throws exception if key is invalid
+    key = key || this.getFullKey();
     return this.getDisplayPage().getSimpleURL(key);
-});
-
-
-x.data.Entity.define("isKey", function (field_id) {
-    var key_fields = this.primary_key.split(",");
-    return (key_fields.indexOf(field_id) > -1);
-});
-
-
-x.data.Entity.define("isKeyComplete", function (key) {
-    if (typeof key !== "string") {
-        key = this.getKey();
-    }
-    try {
-        this.checkKey(key);
-        return true;
-    } catch (ignore) {
-        return false;
-    }
-});
-
-
-x.data.Entity.define("getKeyPieces", function () {
-    var key_fields = this.primary_key.split(","),
-        i,
-        field;
-
-    if (!this.key_pieces) {
-        this.key_pieces = 0;
-        for (i = 0; i < key_fields.length; i += 1) {
-            field = this.getField(key_fields[i]);
-            if (!field) {
-                this.throwError("invalid field in primary key");
-            }
-            this.key_pieces += field.getKeyPieces();
-        }
-    }
-    return this.key_pieces;
-});
-
-
-x.data.Entity.define("getKeyLength", function () {
-    var key_fields,
-        i,
-        field,
-        delim = 0;
-
-    key_fields = (this.primary_key && this.primary_key.split(",")) || [];
-    if (typeof this.key_length !== "number") {
-        this.key_length = 0;
-        for (i = 0; i < key_fields.length; i += 1) {
-            field = this.getField(key_fields[i]);
-            if (!field) {
-                this.throwError("invalid field in primary key");
-            }
-            this.key_length += delim + field.getDataLength();
-            delim = 1;
-        }
-    }
-    return this.key_length;
-});
-
-
-x.data.Entity.define("checkKey", function (key) {
-    var pieces,
-        piecesRequired,
-        val,
-        i;
-
-    if (typeof key !== "string" || key === "") {
-        this.throwError("key must be nonblank string");
-    }
-    pieces = key.split(".");            // Argument is NOT a regex
-    piecesRequired = this.getKeyPieces();
-    if (piecesRequired !== pieces.length) {
-        this.throwError("wrong number of key pieces");
-    }
-    for (i = 0; i < pieces.length; i += 1) {
-        val = pieces[i];
-        if (!val) {
-            this.throwError("key piece is blank");
-        }
-        if (val && !val.match(/^[a-zA-Z0-9_\-]+$/)) {
-            this.throwError("invalid character in key string");
-        }
-    }
-});
-
-
-x.data.Entity.define("populateFromKey", function (key) {
-    var key_fields = this.primary_key.split(","),
-        pieces = key.split("."),
-        start = 0,
-        end,
-        field,
-        i;
-
-    this.checkKey(key);
-    for (i = 0; i < key_fields.length; i += 1) {
-        field = this.getField(key_fields[i]);
-        end = start + field.getKeyPieces();
-        field.set(pieces.slice(start, end).join("."));
-        start = end;
-    }
-});
-
-
-x.data.Entity.define("getAutoIncrementColumn", function () {
-    var key_fields = this.primary_key.split(",");
-    return (key_fields.length === 1) && this.getField(key_fields[0]).auto_generate && key_fields[0];
 });
 
 
@@ -255,100 +258,6 @@ x.data.Entity.override("isValid", function () {
 });
 
 
-x.data.Entity.override("setDelete", function (bool) {
-    // var that = this;
-    x.data.FieldSet.setDelete.call(this, bool);
-/* - nice idea, but needs testing                        TODO
-    if (this.action === "C" || this.action === "I") {
-        this.action = bool ? "I" : "C";        // 'I' = ignore (create & delete); 'C' = create
-    } else if (this.action === "U" || this.action === "D") {
-        this.action = bool ? "D" : "U";        // 'D' = delete; 'U' = update
-    }
-*/
-    if (this.deleting && this.db_record_exists /*&& !this.db_record_locked*/) {
-//        this.lock();      trans.getRow() and trans.getActiveRow() now lock the obtained row
-        this.eachChildRow(function (row) {
-            row.setDelete(bool);
-        });
-    }
-});
-
-
-x.data.Entity.define("eachChildRow", function (callback) {
-    var that = this;
-    _.each(this.children, function (ignore /*record*/, entity_id) {
-        that.trace("loadChildRows() found child: " + entity_id);
-        that.eachLinkedRow(entity_id, null, callback);
-    });
-});
-
-
-x.data.Entity.define("eachLinkedRow", function (entity_id, link_field_id, callback) {
-    var entity = this.getEntityThrowIfUnrecognized(entity_id),
-        query,
-        row,
-        response;
-
-    if (!this.trans) {
-        this.throwError("row has no transaction");
-    }
-    if (!link_field_id && entity.parent_entity === this.id) {
-        link_field_id = entity.link_field;
-    }
-
-    query = entity.getQuery();
-    query.addCondition({ column: "A." + link_field_id, operator: "=", value: this.getKey() });
-    while (query.next() && response !== false) {
-        if (this.trans) {
-            row = this.trans.getActiveRow(entity_id, query.getColumn("A._key").get());
-            response = callback.call(this, row);
-        } else {
-            response = callback.call(this, query);
-        }
-    }
-    query.reset();
-    if (!this.trans) {
-        return;
-    }
-    _.each(this.trans.curr_rows[entity_id], function (row) {
-        if (row.action === 'C' && row.getField(link_field_id).get() === this.getKey()) {
-            callback.call(this, row);
-        }
-    });
-});
-
-
-x.data.Entity.defbind("preventKeyChange", "beforeFieldChange", function (arg) {
-    if (this.isKey(arg.field.getId()) && this.db_record_exists) {
-        this.throwError("trying to change key field of existing record");
-    }
-    this.trace("preventKeyChange() " + this.db_record_exists + ", " + this.db_record_locked);
-    if (this.db_record_exists && this.action !== 'C' && !this.db_record_locked && !this.lock_failure) {
-        this.lock();
-    }
-});
-
-
-x.data.Entity.defbind("doKeyChange", "afterFieldChange", function (arg) {
-    this.trace(this.id + "::afterFieldChange(): " + arg.field.old_val + "->" + arg.field.get() + ", trans: " + this.trans);
-    if (this.trans) {
-        if (this.isKey(arg.field.getId()) && arg.field.isValid()) {    // only try keyChange() on a valid value
-            this.keyChange(arg.field, arg.field.old_val);
-        }
-        this.happen("afterTransChange", arg);
-    }
-});
-
-
-x.data.Entity.define("linkToParent", function (parent_record, link_field) {
-    // if (!this.db_record_exists && parent_record && link_field) {
-        if (typeof parent_record.getKey() === "string" && this.getField(link_field).get() !== parent_record.getKey()) {
-            this.getField(link_field).set(parent_record.getKey());
-        }
-        this.parent_record = parent_record;         // support key change linkage
-        this.trans_link_field = link_field;         // invoked when keyChange() calls trans.addToCache()
-    // }
-});
 
 
 // copy values from fieldset's fields for each field whose id matches, except for keys, using setInitial()
@@ -383,14 +292,14 @@ x.data.Entity.define("presave", function (outcome_id) {
 // });	//---addSecurityCondition
 x.data.Entity.define("renderLineItem", function (element /*, render_opts*/) {
     var display_page = this.getDisplayPage(),
-        anchor = element.makeAnchor(this.getLabel("list_item"), display_page && display_page.getSimpleURL(this.getKey()));
+        anchor = element.makeAnchor(this.getLabel("list_item"), display_page && display_page.getSimpleURL(this.getFullKey()));
 
     return anchor;
 });
 
 
 x.data.Entity.define("renderTile", function (parent_elem, render_opts) {
-    var div_elem = parent_elem.addChild("div", this.id + "_" + this.getKey(), "css_tile");
+    var div_elem = parent_elem.makeElement("div", "css_tile", this.getUUID());
     this.addTileURL(div_elem, render_opts);
     this.addTileContent(div_elem, render_opts);
 });
@@ -418,7 +327,7 @@ x.data.Entity.define("addTileContent", function (div_elem /*, render_opts*/) {
 
 
 x.data.Entity.define("getDotGraphNode", function (highlight) {
-    var key = this.getKey(),
+    var key = this.getFullKey(),
         out = key + " [ label=\"" + this.getLabel("dotgraph") + "\" URL=\"" + this.getDisplayURL(key) + "\"";
 
     if (highlight) {

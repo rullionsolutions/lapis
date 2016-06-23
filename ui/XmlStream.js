@@ -1,10 +1,5 @@
-/*jslint node: true */
+/*global x, _ */
 "use strict";
-
-var Parent       = require("../base/Base")
-  , JSoup        = require("../io/JSoup")
-  , Log          = require("../base/Log")
-  ;
 
 
 /**
@@ -16,7 +11,7 @@ module.exports = Parent.clone({
     indent                  : null,
     line_separator          : "",
      left_bracket_subst     : "≤",       // for XML substitution
-    right_bracket_subst     : "≥",       // for XML substitution
+    right_bracket_subst     : "≥"        // for XML substitution
 });
 
 
@@ -106,13 +101,13 @@ module.exports.define("addChild", function (name, id, css_class, text) {
     }
     this.curr_child = this.clone({ id: name, parent: this, name: name, level: this.level + 1});
     if (id) {
-        this.curr_child.attribute("id", id);
+        this.curr_child.attr("id", id);
     }
     if (css_class) {
-        this.curr_child.attribute("class", css_class);
+        this.curr_child.attr("class", css_class);
     }
     if (text) {
-        this.curr_child.addText(text);
+        this.curr_child.text(text);
     }
     return this.curr_child;
 });
@@ -122,9 +117,7 @@ module.exports.define("addChild", function (name, id, css_class, text) {
 * To initialize the root node of the XmlStream
 */
 module.exports.define("open", function () {
-    var str = "",
-        attr;
-
+    var str = ""\;
     this.checkInvalidState(1);          // check not already open
     this.checkInvalidState(2);          // check not closed
     if (!this.name) {
@@ -132,11 +125,9 @@ module.exports.define("open", function () {
     }
     str += this.getIndentAndSeparator();
     str += "<" + this.name;
-    for (attr in this.attrs) {
-        if (this.attrs.hasOwnProperty(attr) && typeof this.attrs[attr] === "string") {
-            str += " " + attr + "=\"" + this.attrs[attr] + "\"";
-        }
-    }
+    _.each(this.attrs, function (attr_val, attr_id) {
+        str += " " + attr_id + "=\"" + attr_val + "\"";
+    });
     this.print(str);
     this.state = 1;
 });

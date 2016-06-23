@@ -3,13 +3,13 @@
 
 
 x.store.StoreIndexedDB = x.store.Store.clone({
-    id: "Store",
-    db: null,                           // IndexedDB database object - set in start()
-    db_id: null,                        // string database name
-    store_id: null,                     // string store name
-    version: null,                      // integer version sequence
+    id              : "Store",
+    db              : null,                   // IndexedDB database object - set in start()
+    db_id           : null,                   // string database name
+    store_id        : null,                   // string store name
+    version         : null,                   // integer version sequence
     create_properties: { keyPath: "_id" },    // object including key path, etc
-    indexes: []                         // array declaring indexes
+    indexes         : []                      // array declaring indexes
 });
 
 

@@ -13,6 +13,14 @@ x.ui.sections.Form = x.ui.sections.Section.clone({
 });
 
 
+x.ui.sections.Form.defbind("setupEntity", "clone", function () {
+    if (typeof this.entity !== "object" && (typeof this.entity_id === "string" || typeof this.entity === "string")) {
+        this.entity = x.data.Entity.getEntityThrowIfUnrecognized(this.entity_id || this.entity);
+    }
+    this.info("which entity? " + this.entity + ", " + this.entity_id);
+});
+
+
 /**
 * Add the FieldSet argument to this object and call its addFieldsByControl() method to add its fields to the page-level field collection
 * @param FieldSet object to apply to this section
@@ -20,7 +28,7 @@ x.ui.sections.Form = x.ui.sections.Section.clone({
 x.ui.sections.Form.define("setFieldSet", function (fieldset) {
     this.fieldset = fieldset;
     this.fieldset.id_prefix = this.id;
-    this.fieldset.addToPage(this.owner.page, this.field_group);
+    // this.fieldset.addToPage(this.owner.page, this.field_group);
 });
 
 
@@ -30,6 +38,12 @@ x.ui.sections.Form.define("setFieldSet", function (fieldset) {
 */
 x.ui.sections.Form.define("getFieldSet", function () {
     return this.fieldset;
+});
+
+
+x.ui.sections.Form.define("getDocument", function () {
+    this.document = this.document || this.owner.page.getMainDocument();
+    return this.document;
 });
 
 
@@ -43,17 +57,17 @@ x.ui.sections.Form.override("isValid", function () {
 * @param XmlStream object for the parent div to add this section HTML to; render_opts
 * @return XmlStream object for this section's div element
 */
-x.ui.sections.Form.override("render", function (element, render_opts) {
+x.ui.sections.Form.defbind("renderFormSection", "render", function () {
     var count = 0;
-    Parent.render.call(this, element, render_opts);
     this.form_elem = null;
     if (!this.fieldset) {
         this.throwError("formbase no fieldset");
     }
-    count += this.renderForm(this.fieldset, render_opts);
+    this.getSectionElement();           // temp make section visible
+    count += this.renderForm(this.fieldset, {});
 //    count += this.renderSeparateTextareas(this.fieldset, render_opts);
-    if (count === 0 && this.sctn_elem) {        // this.sctn_elem will be set if hide_section_if_empty = false
-        this.sctn_elem.makeElement("div", "css_form_footer").text("no items");
+    if (count === 0 && this.element) {        // this.sctn_elem will be set if hide_section_if_empty = false
+        this.element.makeElement("div", "css_form_footer").text("no items");
     }
 });
 
@@ -63,9 +77,9 @@ x.ui.sections.Form.override("render", function (element, render_opts) {
 * @param render_opts
 * @return XmlStream object for this section's form div element
 */
-x.ui.sections.Form.define("getFormElement", function (render_opts) {
+x.ui.sections.Form.define("getFormElement", function () {
     if (!this.form_elem) {
-        this.form_elem = this.getSectionElement(render_opts).makeElement("div", "css_form_body " + this.layout);
+        this.form_elem = this.getSectionElement().makeElement("div", "css_form_body " + this.layout);
     }
     return this.form_elem;
 });
@@ -73,35 +87,30 @@ x.ui.sections.Form.define("getFormElement", function (render_opts) {
 
 /**
 * To determine whether the given field is visible in this Form context
-* @param field, section_opts
 * @return true if the field should be visible, otherwise false
 */
-x.ui.sections.Form.define("isFieldVisible", function (field, section_opts) {
-    var visible = field.isVisible(section_opts.field_group, section_opts.hide_blank_uneditable_fields);
+x.ui.sections.Form.define("isFieldVisible", function (field) {
+    var visible = field.isVisible(this.field_group, this.hide_blank_uneditable_fields);
     return visible;
 });
 
 
 /**
 * To render the FieldSet as a form with 1 column, calling renderFieldFunction on each field, except where (this.separate_textareas && field.separate_row_in_form)
-* @param FieldSet object of fields to render, render_opts, section_opts (defaults to the Section object itself)
+* @param FieldSet object of fields to render
 * @return Number of fields rendered
 */
-x.ui.sections.Form.define("renderForm", function (fieldset, render_opts, section_opts) {
+x.ui.sections.Form.define("renderForm", function (fieldset) {
     var that = this,
         form_elem,
         count = 0;
 
-    if (!section_opts) {
-        section_opts = this;
-    }
-
     fieldset.each(function (field) {
-        if (field.isVisible(section_opts.field_group, section_opts.hide_blank_uneditable_fields)) {
+        if (field.isVisible(that.field_group, that.hide_blank_uneditable_fields)) {
             if (!form_elem) {
-                form_elem = that.getSectionElement(render_opts).makeElement("form", fieldset.getTBFormType(that.layout));
+                form_elem = that.getSectionElement().makeElement("form", fieldset.getTBFormType(that.layout));
             }
-            field.renderFormGroup(form_elem, render_opts, that.layout);
+            field.renderFormGroup(form_elem, that.layout);
             count += 1;
         }
     });

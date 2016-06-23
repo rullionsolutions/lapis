@@ -11,8 +11,8 @@ x.repl = x.repl || {};
  * 4. decides whether a local change needs to be pushed to the server, vice versa, or no action required
  *
  * doc_obj.local_change = true              I have a local change to PUT, server believed to be in sync
- * doc_obj.conflict = true                  I have a local change to PUT, server found to be out of sync
- * doc_obj.conflict_payload = {...}         I have got latest from server to resolve conflict
+ * doc_obj.local_delete = true              I have a local DELETE to send, server found to be in sync
+ * doc_obj.conflict_payload = {...}         I have a local change to PUT, server believed to be out of sync
  */
 
 x.repl.ReplicatorBase = x.base.Base.clone({
@@ -123,6 +123,26 @@ x.repl.ReplicatorBase.define("getDoc", function (uuid) {
 });
 
 
+x.repl.ReplicatorBase.define("deleteDoc", function (uuid, conflict_resolved) {
+    var that = this;
+    return this.local_store.get(uuid)
+        .then(null, function () {           // assume doc not found
+            return { uuid: uuid };
+        })
+        .then(function (doc_obj) {
+            if (doc_obj.conflict_payload && !conflict_resolved) {
+                that.throwError("document cannot be saved until conflict is resolved");
+            }
+            if (doc_obj.local_delete) {         // already flagged for deletion
+                return that.getNullPromise(false);
+            }
+            doc_obj.local_delete = true;        // test to see if payload has changed
+            delete doc_obj.conflict_payload;
+            return that.local_store.save(doc_obj);
+        });
+});
+
+
 x.repl.ReplicatorBase.define("getServerDocChanges", function () {         // to be overridden
     return undefined;
 });
@@ -203,7 +223,7 @@ x.repl.ReplicatorBase.define("foundLocalDelete", function (doc_obj) {
     var that = this;
     this.debug("foundLocalDelete(): " + JSON.stringify(doc_obj));
     this.replication_data.found_local_deletes += 1;
-    return this.remote_store.delete(doc_obj.uuid)
+    return this.remote_store.delete(doc_obj.uuid, doc_obj[this.prop_id_rev])
         .then(function (/*data*/) {
             that.replication_data.remote_deletes_made += 1;
             that.debug("deleteFromServer() okay");

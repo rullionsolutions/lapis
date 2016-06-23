@@ -3,7 +3,7 @@
 
 
 x.store.StoreCouch = x.store.Store.clone({
-    id: "StoreCouch",
+    id              : "StoreCouch",
     server_url      : null,
     ajax_timeout    : 60000
 });
@@ -106,9 +106,9 @@ x.store.StoreCouch.override("get", function (id) {
 });
 
 
-x.store.StoreCouch.override("delete", function (id) {
+x.store.StoreCouch.override("delete", function (id, rev) {
     var that = this,
-        url  = that.server_url + "/" + that.db_id + "/" + id;
+        url  = that.server_url + "/" + that.db_id + "/" + id + "?rev=" + rev;
     return new Promise(function (resolve, reject) {
         $.ajax({ url: url, type: "DELETE", timeout: that.ajax_timeout, cache: false,
             beforeSend: function (xhr) {

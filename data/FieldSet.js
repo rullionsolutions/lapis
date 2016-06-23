@@ -96,11 +96,8 @@ x.data.FieldSet.define("afterFieldChange", function (field, old_val) {
 
 x.data.FieldSet.define("touch", function () {
     this.modified = true;
-    if (this.trans) {
-        this.trans.setModified();
-        if (this.db_record_exists && this.action !== 'C' && !this.db_record_locked && !this.lock_failure) {
-            this.lock();
-        }
+    if (this.document) {
+        this.document.touch();
     }
 });
 

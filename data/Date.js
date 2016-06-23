@@ -4,7 +4,7 @@
 /**
 * To represent a date field
 */
-x.data.fields.Date = x.data.Text.clone({
+x.data.fields.Date = x.data.fields.Text.clone({
     id                      : "Date",
     css_type                : "date",
     search_oper_list        : "sy.search_oper_list_scalar",
@@ -45,10 +45,11 @@ x.data.fields.Date.define("getDBDateFormat", function (format) {
 });
 
 
+/*
 x.data.fields.Date.override("getDBTextExpr", function (alias) {
     return "DATE_FORMAT(" + (alias ? alias + "." : "") + this.id + ", '" + this.getDBDateFormat(this.display_format) + "')";
 });
-
+*/
 
 /**
 * To attempt to parse a given date (or date/time) string, using given in/out formats if supplied, and applying any 'adjusters'
@@ -171,7 +172,7 @@ x.data.fields.Date.define("isAfter", function (date) {
 
 
 x.data.fields.Date.override("setInitial", function (new_val) {
-    Parent.setInitial.call(this, new_val);
+    x.data.fields.Text.setInitial.call(this, new_val);
     this.val = this.parse(this.val);
 });
 
@@ -187,7 +188,7 @@ x.data.fields.Date.override("set", function (new_val) {
     } else if (!new_val) {
         new_val = "";
     }
-    Parent.set.call(this, new_val);
+    x.data.fields.Text.set.call(this, new_val);
 });
 
 
@@ -219,8 +220,8 @@ x.data.fields.Date.override("getTextFromVal", function () {
     return val;
 });
 
-
-x.data.fields.Date.override("generateTestValue", function (session, min, max) {
+/*
+x.data.fields.Date.override("generateTestValue", function (min, max) {
     var i;
     min = Date.parse(min || this.min || "2000-01-01");
     max = Date.parse(max || this.max || "2019-12-31");
@@ -228,4 +229,4 @@ x.data.fields.Date.override("generateTestValue", function (session, min, max) {
 //    return Lib.formatDate(Lib.addDays(min, i));
     return min.add('d', i).format(this.internal_format);
 });
-
+*/

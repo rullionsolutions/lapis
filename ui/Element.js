@@ -28,35 +28,32 @@ x.ui.Element.define("attr", function (attr, value, valid_xml_content) {
 });
 
 
-x.ui.Element.define("addChild", function (name, id, css_class) {
-    this.curr_child = this.clone({ id: name, parent: this, name: name, level: this.level + 1});
-    this.jquery_elem.append("<" + name + ">");
-    this.curr_child.jquery_elem = this.jquery_elem.children().last();
-    if (id) {
-        this.curr_child.attribute("id", id);
-    }
-    if (css_class) {
-        this.curr_child.attribute("class", css_class);
-    }
-    return this.curr_child;
-});
-
-
 x.ui.Element.define("text", function (text, valid_xml_content) {
     if (typeof text !== "string") {
         this.throwError("text must be a string: " + text);
     }
-    if (!valid_xml_content) {
-        text = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-    }
+    // if (!valid_xml_content) {
+    //     text = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    // }
     text = text.replace(this.left_bracket_regex, "<").replace(this.right_bracket_regex, ">");
-    this.jquery_elem.text(text);
+    if (valid_xml_content) {
+        this.jquery_elem.html(text);
+    } else {
+        this.jquery_elem.text(text);
+    }
     return this;                // allow cascade
 });
 
 
 x.ui.Element.define("empty", function () {
     this.jquery_elem.empty();
+});
+
+
+x.ui.Element.define("bindClick", function (object, target_funct, data_obj) {
+    this.jquery_elem.click(function (event) {
+        object[target_funct || "click"](event, data_obj);
+    });
 });
 
 
@@ -80,7 +77,16 @@ x.ui.Element.define("makeElement", function (tag, css_class, id) {
 */
 
 x.ui.Element.define("makeElement", function (name, css_class, id) {
-    return this.addChild(name, id, css_class);
+    this.curr_child = this.clone({ id: name, parent: this, name: name, level: this.level + 1});
+    this.jquery_elem.append("<" + name + ">");
+    this.curr_child.jquery_elem = this.jquery_elem.children().last();
+    if (id) {
+        this.curr_child.attr("id", id);
+    }
+    if (css_class) {
+        this.curr_child.attr("class", css_class);
+    }
+    return this.curr_child;
 });
 
 
@@ -271,3 +277,4 @@ x.ui.Element.define("makeDropdownLabel", function (label, right_align) {
         this.text("&nbsp;" + (label || ""), true);
     }
 });
+

@@ -21,12 +21,12 @@ x.data.fields.Text.define("hover_text_icon", "&#x24D8;");
 
 /**
 * To render a <td> element and its content, by calling render(), to be a list cell
-* @param the XmlStream object representing the parent tr element to which this td should be rendered, and render_opts
+* @param the XmlStream object representing the parent tr element to which this td should be rendered
 * @return the XmlStream object representing the td element
 */
-x.data.fields.Text.define("renderCell", function (row_elem, render_opts) {
+x.data.fields.Text.define("renderCell", function (row_elem) {
     var cell_elem = row_elem.makeElement("td", this.getCellCSSClass());
-    return this.renderFormGroup(cell_elem, render_opts, "table-cell");
+    return this.renderFormGroup(cell_elem, "table-cell");
 });
 
 
@@ -51,23 +51,30 @@ x.data.fields.Text.define("getCellCSSClass", function () {
 *   <input type=... id=... class='form-control'
 *   <p class='help-block'>...
 *   </div -- if form-horizontal
-* @param the XmlStream object representing the parent element to which this field should be rendered, render_opts
+* @param the XmlStream object representing the parent element to which this field should be rendered
 * @param form_type, string, one of: "basic", form-horizontal", "form-inline", "form-inline-labelless", "table-cell"
 * @return the XmlStream object representing the 'div' element created by this function
 */
-x.data.fields.Text.define("renderFormGroup", function (element, render_opts, form_type) {
-    var editable = (this.isEditable() && !render_opts.uneditable),
-        div = element.makeElement("div", this.getFormGroupCSSClass(form_type, editable), this.getControl());
+x.data.fields.Text.define("renderFormGroup", function (parent_elmt, form_type) {
+    var editable = (this.isEditable() && (!this.page || !this.page.render_opts.uneditable)),
+        div_elmt;
 
+    if (parent_elmt) {
+        this.elmt = parent_elmt.makeElement("div");
+    } else {
+        this.elmt.empty();
+    }
+    div_elmt = this.elmt;
+    div_elmt.attr("class", this.getFormGroupCSSClass(form_type, editable));
     if (form_type !== "table-cell") {
-        this.renderLabel(div, render_opts, form_type);
+        this.renderLabel(div_elmt, form_type);
     }
     if (form_type === "form-horizontal") {
 //        div = div.makeElement("div", this.getAllWidths(editable));                // TB3
-        div = div.makeElement("div", "controls");
+        div_elmt = div_elmt.makeElement("div", "controls");
     }
-    this.renderControl(div, render_opts, form_type);
-    return div;
+    this.renderControl(div_elmt, form_type);
+    return div_elmt;
 });
 
 
@@ -140,18 +147,18 @@ x.data.fields.Text.define("getFlexboxSize", function () {
 
 /**
 * To render the label of this field, with a 'for' attribute to the control, and a tooltip if 'description' is given
-* @param the XmlStream object representing the parent element to which this field should be rendered, and render_opts
+* @param the XmlStream object representing the parent element to which this field should be rendered
 * @return the XmlStream object representing the 'label' element created by this function
 */
-x.data.fields.Text.define("renderLabel", function (div, render_opts, form_type) {
+x.data.fields.Text.define("renderLabel", function (div, form_type) {
     var elmt = div.makeElement("label", this.getLabelCSSClass(form_type));
-    elmt.attr("for", this.getControl());
-    if (this.description && render_opts.dynamic_page !== false) {
+    // elmt.attr("for", this.getControl());
+    if (this.description && (!this.page || this.page.render_opts.dynamic_page !== false)) {
         elmt.makeTooltip(this.hover_text_icon, this.description);
         elmt.text("&nbsp;", true);
     }
     elmt.text(this.label);
-    if (render_opts.dynamic_page === false) {
+    if (this.page && this.page.render_opts.dynamic_page === false) {
         elmt.text(": ");
     }
     return elmt;
@@ -170,23 +177,22 @@ x.data.fields.Text.define("getLabelCSSClass", function (form_type) {
 });
 
 
-x.data.fields.Text.define("renderControl", function (div, render_opts, form_type) {
-    if (this.isEditable() && !render_opts.uneditable) {
-        this.renderEditable(div, render_opts, form_type);
-        this.addClientSideProperties(div, render_opts);
-        this.renderErrors(div, render_opts);
+x.data.fields.Text.define("renderControl", function (div, form_type) {
+    if (this.isEditable() && (!this.page || !this.page.render_opts.uneditable)) {
+        this.renderEditable(div, form_type);
+        this.renderErrors(div);
     } else {
-        this.renderUneditable(div, render_opts);
+        this.renderUneditable(div);
     }
 });
 
 
 /**
 * To render an editable control for this field
-* @param the XmlStream object representing the parent div element to which this control should be rendered, and render_opts
+* @param the XmlStream object representing the parent div element to which this control should be rendered
 * @return the XmlStream object representing the control (e.g. input)
 */
-x.data.fields.Text.define("renderEditable", function (div, render_opts, form_type) {
+x.data.fields.Text.define("renderEditable", function (div, form_type) {
     if (this.input_group_addon_before || this.input_group_addon_after) {
 //        div = div.makeElement("div", "input-group");              TB3
         div = div.makeElement("div", (this.input_group_addon_before ? "input-prepend " : "") + (this.input_group_addon_after ? "input-append " : ""));
@@ -195,7 +201,7 @@ x.data.fields.Text.define("renderEditable", function (div, render_opts, form_typ
 //        div.makeElement("div", "input-group-addon").text(this.input_group_addon_before);              TB3
         div.makeElement("span", "add-on").text(this.input_group_addon_before);
     }
-    this.renderUpdateControls(div, render_opts, form_type);
+    this.renderUpdateControls(div, form_type);
     if (this.input_group_addon_after) {
 //        div.makeElement("div", "input-group-addon").text(this.input_group_addon_after);              TB3
         div.makeElement("span", "add-on").text(this.input_group_addon_after);
@@ -203,9 +209,15 @@ x.data.fields.Text.define("renderEditable", function (div, render_opts, form_typ
 });
 
 
-x.data.fields.Text.define("renderUpdateControls", function (div, render_opts, form_type) {
-    div.makeInput(this.input_type, null, this.getUpdateText(), this.getInputSizeCSSClass(form_type),        // form-control for TB3
-        this.placeholder || this.helper_text);
+x.data.fields.Text.define("renderUpdateControls", function (div, form_type) {
+    var that = this,
+        elmt = div.makeInput(this.input_type, null, this.getUpdateText(), this.getInputSizeCSSClass(form_type),        // form-control for TB3
+            this.placeholder || this.helper_text);
+
+    elmt.jquery_elem.bind("blur", function (/*event*/) {
+        that.set(elmt.jquery_elem.val());
+        that.renderFormGroup(null, form_type);
+    });
 });
 
 
@@ -223,13 +235,13 @@ x.data.fields.Text.define("getInputSizeCSSClass", function (form_type) {
  * - text + single link (internal, external, email address)
  * - text + multiple links as drop-down
  * - text with decoration icon (with or without link)
- * - decoration icon instead of text (with or without link) *///-- bc
+ * - decoration icon instead of text (with or without link) */
 
 /**
 * To render an uneditable representation of this field into a parent div element, setting val and style attributes first, optionally an anchor link, and text
-* @param the XmlStream object representing the parent div element to which this control should be rendered, and render_opts
+* @param the XmlStream object representing the parent div element to which this control should be rendered
 */
-x.data.fields.Text.define("renderUneditable", function (elem, render_opts) {
+x.data.fields.Text.define("renderUneditable", function (elem) {
     var span_elem = elem.makeElement("span", "form-control-static"),
         url,
         style,
@@ -240,44 +252,44 @@ x.data.fields.Text.define("renderUneditable", function (elem, render_opts) {
         this.validate();
     }
     if (this.getText() !== this.val) {
-        span_elem.attribute("val", this.val);
+        span_elem.attr("val", this.val);
     }
     style = this.getUneditableCSSStyle();
     if (style) {
-        span_elem.attribute("style", style);
+        span_elem.attr("style", style);
     }
     url  = this.getURL();
     text = this.getText();
-    if (render_opts.dynamic_page !== false) {
-        nav_options = this.renderNavOptions(span_elem, render_opts);
+    if (!this.page || this.page.render_opts.dynamic_page !== false) {
+        nav_options = this.renderNavOptions(span_elem);
     }
-    if (url && !nav_options && render_opts.show_links !== false) {
-        span_elem = span_elem.addChild("a");
-        span_elem.attribute("href", url);
+    if (url && !nav_options && (!this.page || this.page.render_opts.show_links !== false)) {
+        span_elem = span_elem.makeElement("a");
+        span_elem.attr("href", url);
         if (this.url_target) {
-            span_elem.attribute("target", this.url_target);
+            span_elem.attr("target", this.url_target);
         }
         if (this.unicode_icon) {
-            span_elem.addChild("span", null, this.unicode_icon_class).addText(this.unicode_icon, true);
+            span_elem.makeElement("span", this.unicode_icon_class).text(this.unicode_icon, true);
         } else if (this.button_class) {            // Render URL Field as button
-            span_elem.attribute("class", this.button_class);
+            span_elem.attr("class", this.button_class);
         }
         if (this.url_link_text && !this.isBlank()) {
             text = this.url_link_text;
         }
     }
     if (text) {
-        if (!render_opts.hide_images){//CL - Image don't tend to render in excel exports
+        if (!this.page || !this.page.render_opts.hide_images){//CL - Image don't tend to render in excel exports
             if (this.decoration_icon) {//CL - I think HttpServer.escape renders this property useless
-                span_elem.addText(this.decoration_icon, true);
+                span_elem.text(this.decoration_icon, true);
             }
 //            if (this.icon) {
-//                elem.addChild("img")
-//                    .attribute("alt", this.icon_alt_text || text)
-//                    .attribute("src", this.icon);
+//                elem.makeElement("img")
+//                    .attr("alt", this.icon_alt_text || text)
+//                    .attr("src", this.icon);
 //            }
         }
-        span_elem.addText(text);
+        span_elem.text(text);
     }
 });
 
@@ -293,24 +305,24 @@ x.data.fields.Text.define("getUneditableCSSStyle", function () {
 
 /**
 * Does nothing for most fields; for a Reference field, renders a drop-down set of context menu options
-* @param the XmlStream object representing the parent div element to which this control should be rendered, and render_opts
+* @param the XmlStream object representing the parent div element to which this control should be rendered
 */
-x.data.fields.Text.define("renderNavOptions", function (parent_elem, render_opts) {
+x.data.fields.Text.define("renderNavOptions", function (/*parent_elem*/) {
     return undefined;
 });
 
 
 /**
 * To render message text as a span element with a 'help-inline' CSS class
-* @param the XmlStream object representing the parent element to which this span should be rendered, and render_opts
+* @param the XmlStream object representing the parent element to which this span should be rendered
 * @return text
 */
-x.data.fields.Text.define("renderErrors", function (parent_elem, render_opts) {
+x.data.fields.Text.define("renderErrors", function (parent_elem) {
     // var text,
     //     help_elem;
 
     if (!this.isValid()) {
-        this.messages.renderErrors(parent_elem, render_opts);
+        this.messages.render(parent_elem);
         // text = this.messages.getString();
         // help_elem = div.makeElement("span", "help-block").text(text);
         // Log.debug("Error text for field " + this.toString() + " = " + text);
@@ -322,7 +334,7 @@ x.data.fields.Text.define("renderErrors", function (parent_elem, render_opts) {
 // Used in Reference and File
 x.data.fields.Text.define("renderDropdownDiv", function (parent_elem, control, tooltip) {
     var div_elem = parent_elem.makeElement("div", (this.dropdown_button ? "btn-group" : "dropdown"));
-//    div_elem = parent_elem.addChild("div", null, (this.nav_dropdown_a_class.indexOf("btn") === -1 ? "dropdown" : "btn-group"));
+//    div_elem = parent_elem.makeElement("div", (this.nav_dropdown_a_class.indexOf("btn") === -1 ? "dropdown" : "btn-group"));
     if (this.dropdown_button) {
         div_elem.makeDropdownButton(control, this.dropdown_label, this.dropdown_url, tooltip, this.dropdown_css_class, this.dropdown_right_align);
     } else {

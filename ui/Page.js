@@ -1,6 +1,8 @@
-/*global x, _ */
+/*global x, _, $ */
 "use strict";
 
+
+x.ui.pages = {};
 
 /**
 * Unit of system interaction, through the User Interface or a Machine Interface
@@ -14,6 +16,7 @@ x.ui.Page = x.base.Base.clone({
     internal_state          : 0,
 //    page_tab              : 0
     primary_document        : null,
+    render_opts             : null,
     tabs                    : x.base.OrderedMap.clone({ id: "Page.tabs" }),
     sections                : x.base.OrderedMap.clone({ id: "Page.sections" }),
     links                   : x.base.OrderedMap.clone({ id: "Page.links" }),
@@ -35,15 +38,21 @@ x.ui.Page.defbind("clonePage", "clone", function () {
     // var that = this;
     if (this.instance) {
         this.active = true;
-        this.fields         = {};
+        this.render_opts = {};
     } else {
-        if (this.entity_id && !this.entity) {
-            this.entity = Entity.getEntityThrowIfUnrecognized(this.entity_id);
+        if (x.ui.pages[this.id]) {
+            this.throwError("page already defined: " + this.id);
         }
-        if (this.page_key_entity_id && !this.page_key_entity) {
-            this.page_key_entity = Entity.getEntityThrowIfUnrecognized(this.page_key_entity_id);
-        }
+        x.ui.pages[this.id] = this;
+
     }
+    if (this.entity_id && !this.entity) {
+        this.entity = x.data.Entity.getEntityThrowIfUnrecognized(this.entity_id);
+    }
+    if (this.page_key_entity_id && !this.page_key_entity) {
+        this.page_key_entity = x.data.Entity.getEntityThrowIfUnrecognized(this.page_key_entity_id);
+    }
+
     this.tabs           = this.parent.tabs    .clone({ id: this.id + ".tabs"    , page: this, instance: this.instance });
     this.sections       = this.parent.sections.clone({ id: this.id + ".sections", page: this, instance: this.instance });
     this.links          = this.parent.links   .clone({ id: this.id + ".links"   , page: this, instance: this.instance });
@@ -51,17 +60,25 @@ x.ui.Page.defbind("clonePage", "clone", function () {
 });
 
 
-/**
-* Initialise a Page instance for use - add buttons, call setup on Sections, etc
-*/
-x.ui.Page.define("setup", function () {
-    var i;
-    this.happen("setupStart");
-    this.getPrimaryDocument();
-    this.setupButtons();
-    for (i = 0; i < this.sections.length(); i += 1) {
-        this.sections.get(i).happen("setup");
+
+x.ui.Page.defbind("cloneInstance", "cloneInstance", function () {
+    var that = this;
+    if (!this.selectors) {
+        this.throwError("no 'selectors' object provided");
     }
+    this.elements = {};
+    _.each(this.selectors, function (selector, id) {
+        that.elements[id] = x.ui.Element.clone({ id: id, jquery_elem: $(selector) });
+        if (that.elements[id].jquery_elem.length !== 1) {
+            that.throwError("invalid selector: " + id + ", found " + that.elements[id].jquery_elem.length + " times");
+        }
+    });
+    this.happen("setupStart");
+    // this.getPrimaryDocument();
+    this.setupButtons();
+    this.sections.each(function (section) {
+        section.happen("setup");
+    });
     if (this.tabs.length() > 0) {
         this.page_tab = this.tabs.get(0);
     }
@@ -76,7 +93,7 @@ x.ui.Page.define("setupButtons", function () {
     var that = this;
     _.each(this.outcomes, function (obj, id) {
         obj.id   = id;
-        obj.save = true;
+        obj.page_funct_click = "save";
         obj.main_button = false;
         that.buttons.add(obj);
     });
@@ -89,9 +106,9 @@ x.ui.Page.define("setupButtons", function () {
             this.prompt_message = "Navigating away from this page will mean losing any data changes you've entered";
         }
         if (!this.outcomes) {    // save is NOT main_button to prevent page submission when enter is pressed
-            this.buttons.add({ id: "save", label: "Save", main_button: false, save: true, css_class: "btn-primary" });
+            this.buttons.add({ id: "save", label: "Save", main_button: false, save: true, css_class: "btn-primary", page_funct_click: "save" });
         }
-        this.buttons.add({ id: "cancel", label: "Cancel" });
+        this.buttons.add({ id: "cancel", label: "Cancel", page_funct_click: "cancel" });
     }
 });
 
@@ -103,15 +120,15 @@ x.ui.Page.define("setupButtons", function () {
 */
 x.ui.Page.define("allowed", function (session, page_key, cached_record) {
     var allowed = {
-        access  : false,
-        page_id : this.id,
-        user_id : session.user_id,
-        page_key: page_key,
-        reason  : "no security rule found",
-        toString: function () {
-            return this.text + " to " + this.page_id + ":" + (this.page_key || "[no key]") + " for " + this.user_id + " because " + this.reason;
-        }
-    };
+            access  : false,
+            page_id : this.id,
+            user_id : session.user_id,
+            page_key: page_key,
+            reason  : "no security rule found",
+            toString: function () {
+                return this.text + " to " + this.page_id + ":" + (this.page_key || "[no key]") + " for " + this.user_id + " because " + this.reason;
+            }
+        };
 
     this.checkBasicSecurity(session, allowed);                                  // §vani.core.7.2.6.1
 
@@ -255,23 +272,13 @@ x.ui.Page.define("moveToFirstErrorTab", function () {
 
 
 
-/**
-* Called at beginning of save(); does nothing here - to be overridden
-* @param outcome_id: text id string, 'save' by default
-*/
-x.ui.Page.define("presave", function () {
-    var i;
-    for (i = 0; i < this.sections.length(); i += 1) {
-        this.sections.get(i).happen("presave");
-    }
-    this.happen("presave");
-    this.trans.presave(this.outcome_id);
-});
 
+x.ui.Page.define("save", function () {
+    this.main_document.save();
+});
 
 /**
 * If page is valid, attempt to commit transaction; if failure occurs during save, page is cancelled
-*/
 x.ui.Page.define("save", function () {
     var i;
 
@@ -324,6 +331,7 @@ x.ui.Page.define("save", function () {
         this.cancel();
     }
 });
+*/
 
 
 /**
@@ -346,107 +354,91 @@ x.ui.Page.define("cancel", function (http_status, http_message) {
 
 
 //---------------------------------------------------------------------------------------  render
-/**
-* Generate HTML output for this page, given its current state; calls renderSections, renderButtons, renderLinks, renderTabs, renderDetails
-* <div id='css_payload_page'>
-*   <div id='css_payload_page_sections'>
-*   <div id='css_payload_page_buttons' class='css_hide'>
-*   <div id='css_payload_page_links'   class='css_hide'>
-*   <div id='css_payload_page_tabs'    class='css_hide'>
-*   <div id='css_payload_page_details' class='css_hide'>
-* @param xmlstream element object to be the parent of the page-level div element; render_opts is a map of settings: all_sections boolean (defaults false), include_buttons boolean (defaults true)
-* @return xmlstream element object for the div.css_page element representing the page, which was added to the argument
-*/
-x.ui.Page.define("render", function (element, render_opts) {
-    var page_elem;
-    this.render_error = false;
-
-    // SF - I'm trying this here - I want trans messages to be in the stack for one reload after the trans page is last current
-//    this.session.messages.trans = this.trans;
-    try {
-        if (!this.active) {
-            this.throwError("page not active");
-        }
-        if (typeof this.override_render_all_sections === "boolean") {
-            render_opts.all_sections = this.override_render_all_sections;
-        }
-        page_elem = element.makeElement("div", null, "css_payload_page");
-        // done in Display section update
-        // if (this.getPrimaryRow() && !this.getPrimaryRow().modifiable) {
-        //     this.getPrimaryRow().reload(this.page_key);
-        // }
-        this.happen("renderStart", { page_element: page_elem, render_opts: render_opts });
-        this.renderSections(page_elem, render_opts, this.page_tab ? this.page_tab.id : null);
-        if (render_opts.include_buttons !== false) {
-            this.renderButtons (page_elem, render_opts);
-        }
-        if (render_opts.show_links      !== false) {
-            this.renderLinks   (page_elem, render_opts);
-        }
-        this.renderTabs    (page_elem, render_opts);
-        this.renderDetails (page_elem, render_opts);
-        this.happen("renderEnd", { page_element: page_elem, render_opts: render_opts });
-    } catch (e) {
-        this.report(e);
-        // Better to output immediately in render stream, otherwise not reported until next visit
-        this.render_error = true;
-        this.throwError("Error in Page.render: [" + this.id + "] " + this.title);
-    }
-    return page_elem;
+x.ui.Page.define("render", function () {
+    this.happen("render");
 });
 
 
 /**
 * Call render() on each section that is associated with current tab or has no tab
-* @param xmlstream page-level div element object; render_opts
+* @param xmlstream page-level div element object
 * @return xmlstream div element object containing the section divs
 */
-x.ui.Page.define("renderSections", function (page_elem, render_opts, page_tab_id) {
-    var sections_elem = page_elem.makeElement("div", null, "css_payload_page_sections"),
+x.ui.Page.defbind("renderSections", "render", function () {
+    var page_tab_id = (this.page_tab ? this.page_tab.id : null),
         div_elem,
         row_span = 0,
         i,
         section,
         tab;
 
+    this.elements.content.empty();
     for (i = 0; i < this.sections.length(); i += 1) {
         section = this.sections.get(i);
         tab     = section.tab && this.tabs.get(section.tab);
-        if (section.visible && section.accessible !== false && (!tab || tab.visible) && (render_opts.all_sections || !tab || section.tab === page_tab_id)) {
+        if (section.visible && section.accessible !== false && (!tab || tab.visible) && (this.all_sections || !tab || section.tab === page_tab_id)) {
             row_span += section.tb_span;
             if (!div_elem || row_span > 12) {
-                div_elem = sections_elem.makeElement("div", "row-fluid");
+                div_elem = this.elements.content.makeElement("div", "row-fluid");
                 row_span = section.tb_span;
             }
-            section.render(div_elem, render_opts);
+            section.render(div_elem);
         }
     }
-    return sections_elem;
 });
 
 
-/**
-* Add argument field to page's map of fields, throwing an exception if the control id is already in use
-* @param Field object to add to the page's map
-*/
-x.ui.Page.define("addField", function (field) {
-    var control = field.getControl();
-    this.trace("Adding field " + field + " to page.fields with control: " + control);
-    if (this.fields[control]) {
-        this.throwError("field with this control already exists: " + control);
+x.ui.Page.defbind("renderTabs", "render", function () {
+    var that = this;
+    if (this.show_tabs === false) {
+        return;
     }
-    this.fields[control] = field;
+    this.tabs.each(function (tab) {
+        if (tab.visible) {
+            tab.render(that.elements.tabs);
+        }
+    });
+});
+//Page.bind("renderTabs", "renderStart");
+
+
+x.ui.Page.defbind("renderButtons", "render", function () {
+    var that = this;
+    if (this.show_buttons === false) {
+        return;
+    }
+    this.elements.buttons.empty();
+    this.buttons.each(function (button) {
+        if (button.visible) {
+            button.render(that.elements.buttons);
+        }
+    });
 });
 
 
-/**
-* Remove argument field from page's map of fields
-* @param Field object to remove from the page's map
-*/
-x.ui.Page.define("removeField", function (field) {
-    delete this.fields[field.getControl()];
+x.ui.Page.defbind("renderLinks", "render", function () {
+    var that = this;
+    if (this.show_links === false) {
+        return;
+    }
+    this.elements.links.empty();
+    this.links.each(function (link) {
+        if (link.isVisible(that.session)) {
+            link.render(that.elements.links);
+        }
+    });
 });
 
+
+x.ui.Page.define("getMainDocument", function () {
+    this.main_document = this.main_document || x.data.Document.clone({
+        id      : "MainDocument",
+        entity  : this.entity,
+        store   : this.store,
+        instance: true
+    });
+    return this.main_document;
+});
 
 
 /**

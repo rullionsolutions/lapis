@@ -28,14 +28,14 @@ x.data.fields.Textarea.override("set", function (new_val) {
         this.throwError("argument not string: " + this.owner.id + ":" + this.id);
     }
     if (this.css_richtext) {
-        new_val = new_val.replace(/<br class="aloha-cleanme">/g, "");
+        new_val = new_val.replace(/<br\ class="aloha-cleanme">/g, "");
     }
-    new_val = new_val.replace(XmlStream.left_bracket_regex, "").replace(XmlStream.right_bracket_regex, "");
-    return Parent.set.call(this, new_val);
+    // new_val = new_val.replace(XmlStream.left_bracket_regex, "").replace(XmlStream.right_bracket_regex, "");
+    return x.data.fields.Text.set.call(this, new_val);
 });
 
-x.data.fields.Textarea.override("renderUpdateControls", function (div, render_opts, form_type) {
-    if (this.css_richtext && render_opts.enable_aloha !== false) {
+x.data.fields.Textarea.override("renderUpdateControls", function (div, form_type) {
+    if (this.css_richtext && this.enable_aloha !== false) {
         div.makeElement("div", "css_richtext_target").text(this.val, true);        // true = don't escape markup
     } else {
         div.makeElement("textarea", this.getInputSizeCSSClass(form_type))
@@ -44,7 +44,7 @@ x.data.fields.Textarea.override("renderUpdateControls", function (div, render_op
     }
 });
 
-x.data.fields.Textarea.override("renderUneditable", function (elem, render_opts, inside_table) {
+x.data.fields.Textarea.override("renderUneditable", function (elem) {
     var div_elem = elem.makeElement("div", "form-control-static"),
         style = this.getUneditableCSSStyle();
 
@@ -52,7 +52,7 @@ x.data.fields.Textarea.override("renderUneditable", function (elem, render_opts,
         this.validate();
     }
     if (style) {
-        div_elem.attribute("style", style);
+        div_elem.attr("style", style);
     }
     if (this.getText()) {
         div_elem.text(this.getText(), this.css_richtext);        // don't escape markup if richtext
@@ -60,13 +60,14 @@ x.data.fields.Textarea.override("renderUneditable", function (elem, render_opts,
 });
 
 x.data.fields.Textarea.override("getTextFromVal", function () {
-    Log.trace("detokenizing textarea: " + this.id + "? " + this.detokenize_content);
+    this.trace("detokenizing textarea: " + this.id + "? " + this.detokenize_content);
     if (this.detokenize_content) {
         return this.detokenize(this.val);
     }
     return this.val;
 });
 
+/*
 x.data.fields.Textarea.define("replaceToken_image", function (tokens) {
     return XmlStream.left_bracket_subst + "img src='" + this.image_root_path + this[tokens[1]] + "' /" + XmlStream.right_bracket_subst;
 });
@@ -84,7 +85,9 @@ x.data.fields.Textarea.define("replaceToken_video", function (tokens) {
         XmlStream.left_bracket_subst + "/embed"  + XmlStream.right_bracket_subst +
         XmlStream.left_bracket_subst + "/object" + XmlStream.right_bracket_subst;
 });
+*/
 
+/*
 x.data.fields.Textarea.override("getFilterField", function (fieldset, spec, suffix) {
     return fieldset.addField({
         id              : spec.id + "_filt",
@@ -93,7 +96,8 @@ x.data.fields.Textarea.override("getFilterField", function (fieldset, spec, suff
     });
 });
 
-x.data.fields.Textarea.override("generateTestValue", function (session) {
-    var val = Lib.lorem.substr(0, 1500);
+x.data.fields.Textarea.override("generateTestValue", function () {
+    var val = x.test.lorem.substr(0, 1500);
     return val;
 });
+*/
