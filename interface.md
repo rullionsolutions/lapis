@@ -65,3 +65,5 @@
 
 
 
+## data/DataManager
+* getRecord(entity_id, key), getRecordNullIfNotInCache(entity_id, key), getRecordThrowIfNotInCache(entity_id, key)

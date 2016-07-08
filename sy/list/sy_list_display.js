@@ -10,8 +10,7 @@ x.ui.Page.clone({
 
 x.ui.pages.sy_list_display.sections.addAll([
     { id: "main"    , type: "Display"      , entity: "sy_list" },
-    { id: "items"   , type: "ListQuery"    , entity: "sy_list_item", link_field: "list" },
-    { id: "chg_hist", type: "ChangeHistory", entity: "sy_list" }
+    { id: "items"   , type: "ListQuery"    , entity: "sy_list_item", link_field: "list" }
 ]);
 
 x.ui.pages.sy_list_display.links.addAll([

@@ -55,7 +55,7 @@ x.ui.sections.List.define("getTableElement", function () {
     var css_class;
 
     if (!this.table_elem) {
-        css_class = "css_list table table-bordered table-condensed table-hover";
+        css_class = "css_list table table-bordered table-condensed table-hover form-inline";
         if (this.selected_keys && this.selected_keys.length > 0) {
             css_class += " css_mr_selecting";
         }

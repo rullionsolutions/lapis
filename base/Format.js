@@ -126,7 +126,7 @@ x.base.Format.define("convertNameLastOnly", function (name) {
 
 
 
-x.base.Base.define("getRandomNumber", function (to, from, decimal_digits) {
+x.base.Format.define("getRandomNumber", function (to, from, decimal_digits) {
     if (typeof to !== "number") {
         this.throwError("'to' argument must be a number");
     }
@@ -141,7 +141,7 @@ x.base.Base.define("getRandomNumber", function (to, from, decimal_digits) {
 });
 
 
-x.base.Base.define("getRandomStringArray", function (options) {
+x.base.Format.define("getRandomStringArray", function (options) {
     var array = [];
 
     function addRange(from, to) {
@@ -170,7 +170,7 @@ x.base.Base.define("getRandomStringArray", function (options) {
 });
 
 
-x.base.Base.define("getRandomString", function (length, array) {
+x.base.Format.define("getRandomString", function (length, array) {
     var i,
         val = "";
 

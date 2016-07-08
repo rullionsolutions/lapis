@@ -53,23 +53,19 @@ x.data.fields.Text.define("validate", function () {
     if (this.messages) {
         this.messages.clear();
     } else {
-        this.messages = x.ui.MessageManager.clone({ id: this.id, field: this, prefix: this.label, instance: true });
+        this.messages = x.session.MessageManager.clone({ id: this.id, field: this, prefix: this.label, instance: true });
     }
-//    this.text = this.getTextFromVal();
-//    this.url  = this. getURLFromVal();
     if (this.mandatory && !this.val) {
-        this.messages.add({ type: 'E', text: "mandatory", cli_side_revalidate: true });
+        this.messages.add({ type: 'E', text: "mandatory" });
     }
     if (this.val && this.val.length > this.getDataLength() && this.getDataLength() > -1) {
-        this.messages.add({ type: 'E', text: "longer than " + this.getDataLength() + " characters", cli_side_revalidate: true });
+        this.messages.add({ type: 'E', text: "longer than " + this.getDataLength() + " characters" });
     }
     if (this.val && this.regex_pattern && !(this.val.match(new RegExp(this.regex_pattern)))) {
-        this.messages.add({ type: 'E', text: this.regex_label || "match pattern", cli_side_revalidate: true });
+        this.messages.add({ type: 'E', text: this.regex_label || "match pattern" });
     }
-    if (this.val && this.enforce_unique) {
-        if (this.checkUnique(this.val)) {
-            this.messages.add({ id: "non_unique_field", type: 'E', text: this.unique_error_msg });
-        }
+    if (this.enforce_unique) {
+        this.throwError("enforce_unique not implemented");
     }
     this.validated = true;
     this.happen("validate");
@@ -84,8 +80,5 @@ x.data.fields.Text.define("isValid", function (modified_only) {
     if ((!modified_only || this.isModified()) && !this.validated) {
         this.validate();
     }
-    if (!this.messages) {
-        return true;
-    }
-    return !this.messages.error_recorded_since_clear;
+    return !this.messages || !this.messages.error_recorded;
 });

@@ -431,12 +431,17 @@ x.ui.Page.defbind("renderLinks", "render", function () {
 
 
 x.ui.Page.define("getMainDocument", function () {
-    this.main_document = this.main_document || x.data.Document.clone({
-        id      : "MainDocument",
-        entity  : this.entity,
-        store   : this.store,
-        instance: true
-    });
+    if (!this.main_document) {
+        this.main_document = x.data.Document.clone({
+            id      : "MainDocument",
+            entity  : this.entity,
+            store   : this.store,
+            instance: true
+        });
+        if (this.page_key) {
+            this.main_document.load(this.entity.id + ":" + this.page_key);
+        }
+    }
     return this.main_document;
 });
 

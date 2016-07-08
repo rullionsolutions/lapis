@@ -9,8 +9,7 @@ x.data = x.data || {};
 x.data.FieldSet = x.base.OrderedMap.clone({
     id                      : "FieldSet",
     modifiable              : false,
-    modified                : false,                       // private - modified since original value, or not?
-    deleting                : false                        // whether or not we are deleting this record
+    modified                : false                        // private - modified since original value, or not?
 });
 
 
@@ -136,21 +135,6 @@ x.data.FieldSet.override("replaceToken", function (token) {
 });
 
 
-x.data.FieldSet.define("setDelete", function (bool) {
-    if (!this.isModifiable()) {
-        this.throwError("fieldset not modifiable");
-    }
-    if (this.deleting !== bool) {
-        this.trace("set modified");
-        this.modified = true;
-        if (this.trans) {
-            this.trans.setModified();
-        }
-    }
-    this.deleting = bool;
-});
-
-
 x.data.FieldSet.define("isModified", function () {
     return this.modified;
 });
@@ -166,7 +150,7 @@ x.data.FieldSet.define("isValid", function (modified_only, field_group) {
     if (this.deleting) {
         return true;
     }
-    this.each(function(field) {
+    this.each(function (field) {
         if (field_group && field_group !== field.field_group) {
             return;
         }
@@ -209,7 +193,7 @@ x.data.FieldSet.define("getTBFormType", function (our_form_type) {
     return tb_form_type;
 });
 
-
+/*
 x.data.FieldSet.define("renderForm", function (parent_elem, render_opts, form_type, field_group, hide_blank_uneditable_fields) {
     var tb_form_type = this.getTBFormType(form_type),
         form_elem,
@@ -226,7 +210,7 @@ x.data.FieldSet.define("renderForm", function (parent_elem, render_opts, form_ty
     });
     return count;
 });
-
+*/
 
 x.data.FieldSet.define("addToPage", function (page, field_group) {
     this.page = page;

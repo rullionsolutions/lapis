@@ -216,9 +216,9 @@ x.base.Base.define("output", function (str) {
 // overcome issues with strack traces
 x.base.Base.define("throwError", function (str_or_spec) {
     var new_exc;
-    if (typeof console) {
-        throw str_or_spec;
-    }
+    // if (typeof console) {
+    //     throw str_or_spec;
+    // }
     try {
         this.throwErrorFunctionDoesntExist();       // this function is expected to NOT EXIST
     } catch (e) {                           // so a TypeError is thrown here, which includes a stack trace

@@ -62,6 +62,12 @@ x.base.Base.define("fatal", function (str) {
 });
 
 
+x.base.Base.define("report", function (e, log_level) {
+    this.doLog(log_level || this.log_levels.error, e.toString());
+    this.output(e.stack);
+});
+
+
 x.base.Base.define("doLog", function (log_level, str) {
     this.log_counters[log_level] = (this.log_counters[log_level] || 0) + 1;
     if (this.checkLogLevel(log_level)) {

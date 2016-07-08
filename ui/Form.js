@@ -41,8 +41,15 @@ x.ui.sections.Form.define("getFieldSet", function () {
 });
 
 
+x.ui.sections.Form.define("setDocument", function (document) {
+    if (this.document) {
+        this.throwError("can't change document once set");
+    }
+    this.document = document;
+});
+
+
 x.ui.sections.Form.define("getDocument", function () {
-    this.document = this.document || this.owner.page.getMainDocument();
     return this.document;
 });
 
@@ -52,23 +59,15 @@ x.ui.sections.Form.override("isValid", function () {
 });
 
 
-/**
-* Generate HTML output for this section, given its current state; depending on 'layout' property, it calls renderFormHorizontal()
-* @param XmlStream object for the parent div to add this section HTML to; render_opts
-* @return XmlStream object for this section's div element
-*/
-x.ui.sections.Form.defbind("renderFormSection", "render", function () {
-    var count = 0;
-    this.form_elem = null;
-    if (!this.fieldset) {
-        this.throwError("formbase no fieldset");
+x.ui.sections.Form.defbind("bindRenderToDocument", "render", function () {
+    var that = this;
+    if (!this.document) {
+        this.throwError("Form has no document");
     }
-    this.getSectionElement();           // temp make section visible
-    count += this.renderForm(this.fieldset, {});
-//    count += this.renderSeparateTextareas(this.fieldset, render_opts);
-    if (count === 0 && this.element) {        // this.sctn_elem will be set if hide_section_if_empty = false
-        this.element.makeElement("div", "css_form_footer").text("no items");
-    }
+    this.document.defbind("renderSection__" + this.id, "ready", function () {
+        that.setFieldSet(this.record);
+        that.renderForm();
+    });
 });
 
 
@@ -79,7 +78,7 @@ x.ui.sections.Form.defbind("renderFormSection", "render", function () {
 */
 x.ui.sections.Form.define("getFormElement", function () {
     if (!this.form_elem) {
-        this.form_elem = this.getSectionElement().makeElement("div", "css_form_body " + this.layout);
+        this.form_elem = this.getSectionElement().makeElement("form", this.fieldset.getTBFormType(this.layout));
     }
     return this.form_elem;
 });
@@ -96,23 +95,38 @@ x.ui.sections.Form.define("isFieldVisible", function (field) {
 
 
 /**
+* Generate HTML output for this section, given its current state; depending on 'layout' property, it calls renderFormHorizontal()
+* @param XmlStream object for the parent div to add this section HTML to; render_opts
+* @return XmlStream object for this section's div element
+*/
+x.ui.sections.Form.define("renderForm", function () {
+    this.form_elem = null;
+    if (!this.fieldset) {
+        this.throwError("formbase no fieldset");
+    }
+    this.getSectionElement();           // temp make section visible
+    this.visible_field_count += this.renderFormFields(this.fieldset);
+//    count += this.renderSeparateTextareas(this.fieldset, render_opts);
+    if (this.visible_field_count === 0 && this.element) {        // this.sctn_elem will be set if hide_section_if_empty = false
+        this.element.makeElement("div", "css_form_footer").text("no items");
+    }
+});
+
+
+/**
 * To render the FieldSet as a form with 1 column, calling renderFieldFunction on each field, except where (this.separate_textareas && field.separate_row_in_form)
 * @param FieldSet object of fields to render
 * @return Number of fields rendered
 */
-x.ui.sections.Form.define("renderForm", function (fieldset) {
+x.ui.sections.Form.define("renderFormFields", function (fieldset) {
     var that = this,
-        form_elem,
-        count = 0;
+        visible_field_count = 0;
 
     fieldset.each(function (field) {
         if (field.isVisible(that.field_group, that.hide_blank_uneditable_fields)) {
-            if (!form_elem) {
-                form_elem = that.getSectionElement().makeElement("form", fieldset.getTBFormType(that.layout));
-            }
-            field.renderFormGroup(form_elem, that.layout);
-            count += 1;
+            field.renderFormGroup(that.getFormElement(), that.layout);
+            visible_field_count += 1;
         }
     });
-    return count;
+    return visible_field_count;
 });

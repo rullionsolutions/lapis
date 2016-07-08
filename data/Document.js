@@ -16,6 +16,7 @@ x.data.Document.register("beforeLoad");
 x.data.Document.register( "afterLoad");
 x.data.Document.register("beforeSave");
 x.data.Document.register( "afterSave");
+x.data.Document.register("ready");
 
 
 x.data.Document.defbind("setupDocInstance", "cloneInstance", function () {
@@ -33,6 +34,9 @@ x.data.Document.define("load", function (key) {
     return this.store.get(key)
         .then(function (doc_obj) {
             that.happen("afterLoad", doc_obj);
+        })
+        .then(function () {
+            that.happen("ready");
         });
 });
 
@@ -58,6 +62,7 @@ x.data.Document.define("create", function () {
     this.record.setDefaultVals();
     // this.record.generateKey();                  // which may move it into the curr_rows cache
     this.record.happen("initCreate");
+    this.happen("ready");
     return this.record;
 });
 
@@ -101,6 +106,9 @@ x.data.Document.define("save", function () {
     return this.store.save(this.record.populateToDocument())
         .then(function () {
             that.happen("afterSave");
+        })
+        .then(function () {
+            that.happen("ready");
         });
 });
 

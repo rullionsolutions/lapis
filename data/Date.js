@@ -171,12 +171,6 @@ x.data.fields.Date.define("isAfter", function (date) {
 });
 
 
-x.data.fields.Date.override("setInitial", function (new_val) {
-    x.data.fields.Text.setInitial.call(this, new_val);
-    this.val = this.parse(this.val);
-});
-
-
 x.data.fields.Date.override("set", function (new_val) {
     if (typeof new_val === "object" && typeof new_val.getFullYear === "function") {
         new_val = new_val.internal();

@@ -1,15 +1,8 @@
-/*jslint node: true */
-
+/*global x, _ */
 "use strict";
 
-var Parent       = require("./FormBase")
-  // , Entity       = require("../data/Entity")
-  ;
 
-/**
-* To represeent an existing record in the database being displayed
-*/
-module.exports = Parent.clone({
+x.ui.sections.Display = x.ui.sections.Form.clone({
     id      : "Display",
     layout  : "form-horizontal-readonly"
 });
@@ -18,16 +11,17 @@ module.exports = Parent.clone({
 /**
 * To prepare the Display section, calling setFieldSet() on the page's primary_row, if the entity id's match and there is no link_field defined
 */
-module.exports.defbind("setupFieldSet", "setup", function () {
+x.ui.sections.Display.defbind("setupFieldSet", "setup", function () {
+    var fieldset;
     if (this.fieldset) {
-        return;                    // done manually in setupStart
+        return;             // set already
     }
-    this.setFieldSet(this.entity.getRow(this.deduceKey()));
+    if (this.link_field) {
+        this.throwError("not implemented yet");
+    } else if (this.entity.id === this.owner.page.entity.id) {
+        this.setDocument(this.owner.page.getMainDocument());
+    } else {
+        this.throwError("no fieldset and can't create one");
+    }
 });
 
-
-module.exports.defbind("reloadFieldSet", "update", function () {
-    if (typeof this.fieldset.reload === "function") {
-        this.fieldset.reload();
-    }
-});

@@ -13,25 +13,25 @@ x.data.fields.Text = x.base.Base.clone({
 });
 
 
-x.data.fields.Text.register("setInitial");
-x.data.fields.Text.register("setInitialTrans");
 x.data.fields.Text.register("beforeChange");
-x.data.fields.Text.register("beforeTransChange");
 x.data.fields.Text.register("validate");
 x.data.fields.Text.register("afterChange");
-x.data.fields.Text.register("afterTransChange");
 
 
 /**
 * To initialise this field when cloned - sets query_column property based on table_alias, sql_function and id
 */
-x.data.fields.Text.defbind("resetVal", "clone", function () {
+x.data.fields.Text.defbind("resetVal", "cloneInstance", function () {
     this.val          = "";
-    this.orig_val     = "";
-    this.prev_val     = "";
     this.text         = null;
     this.url          = null;
     this.validated    = false;                    // private - validated since last significant change?
+});
+
+
+x.data.fields.Text.defbind("resetModified", "cloneInstance", function () {
+    this.orig_val     = this.val;
+    this.prev_val     = this.val;
     this.modified     = false;                    // private - modified since original value, or not?
 });
 
@@ -46,8 +46,6 @@ x.data.fields.Text.define("get", function () {
     }
     return this.val;
 });
-
-
 
 
 /**
@@ -76,53 +74,31 @@ x.data.fields.Text.define("isBlank", function (val) {
 });
 
 
-/**
-* To set the initial value of this field - called by Entity.setInitial()
-* @param Initial string value to set
-*/
-x.data.fields.Text.define("setInitial", function (new_val) {
-    if (typeof new_val !== "string") {
-        this.throwError("invalid argument");
-    }
-    this.resetVal();
-    this.val       = new_val;
-    this.orig_val  = new_val;
-    this.prev_val  = new_val;
-
-    this.happen("setInitial", new_val);
-    if (this.owner && this.owner.trans) {
-        this.happen("setInitialTrans", new_val);
-    }
-});
-
-
 x.data.fields.Text.define("setDefaultVal", function () {
+    if (!this.isInitializing()) {
+        this.throwError("not currently initializing");
+    }
     if (this.default_val) {
-        this.setInitial(this.default_val);
-        this.modified = true;
-        this.validate();           // this was commented-out, presumably because it broke something, but it is necessary
+        this.set(this.default_val);
     }
 });
 
 
-x.data.fields.Text.define("set", function (new_val) {
-    var old_val = this.get(),
-        changed = this.setInternal(new_val);
-
-    if (changed) {
-        this.trace("setting " + this.getId() + " from '" + old_val + "' to '" + new_val + "'");
-    }
-    return changed;
+x.data.fields.Text.define("isInitializing", function () {
+    return (this.owner && this.owner.isInitializing());
 });
+
 
 /**
 * To set this field's value to the string argument specified, returning false if no change, otherwise calling owner.beforeFieldChange() and this.beforeChange() before making the change, then owner.afterFieldChange() and this.afterChange() then returning true
 * @param String new value to set this field to
 * @return True if this field's value is changed, and false otherwise
 */
-x.data.fields.Text.define("setInternal", function (new_val) {
+x.data.fields.Text.define("set", function (new_val) {
     var old_val = this.get();
-    this.prev_val = old_val;            // to support isChangedSincePreviousUpdate()
+    if (!this.isInitializing()) {
+        this.prev_val = old_val;            // to support isChangedSincePreviousUpdate()
+    }
     if (typeof new_val !== "string") {
         this.throwError("argument not string: " + this.owner.id + "." + this.id);
     }
@@ -132,24 +108,23 @@ x.data.fields.Text.define("setInternal", function (new_val) {
     if (new_val === this.val) {
         return false;
     }
-    if (this.owner && this.owner.beforeFieldChange) {
-        this.owner.beforeFieldChange(this, new_val);            // May throw an error
-    }
-    this.happen("beforeChange", new_val);
-    if (this.owner && this.owner.trans) {
-        this.happen("beforeTransChange", new_val);
+    if (!this.isInitializing()) {
+        if (this.owner && typeof this.owner.beforeFieldChange === "function") {
+            this.owner.beforeFieldChange(this, new_val);            // May throw an error
+        }
+        this.happen("beforeChange", new_val);
     }
     this.val       = new_val;
     this.text      = null;
     this.url       = null;
-    this.modified  = true;
     this.validated = false;
-    if (this.owner && this.owner.afterFieldChange) {
-        this.owner.afterFieldChange(this, old_val);
-    }
-    this.happen("afterChange", old_val);
-    if (this.owner && this.owner.trans) {
-        this.happen("afterTransChange", old_val);
+    this.trace("setting " + this.getId() + " from '" + old_val + "' to '" + new_val + "'");
+    if (!this.isInitializing()) {
+        this.modified  = true;
+        if (this.owner && typeof this.owner.afterFieldChange === "function") {
+            this.owner.afterFieldChange(this, old_val);
+        }
+        this.happen("afterChange", old_val);
     }
     return true;
 });
@@ -226,8 +201,10 @@ x.data.fields.Text.define("isModified", function () {
 * @return display text string appropriate to this field and its properties
 */
 x.data.fields.Text.define("getTextFromVal", function () {
-    var val = this.get(),
-        out = this.detokenize(this.text_pattern);
+    var out = this.detokenize(this.text_pattern);
+
+    // val = this.get(),
+/*
     if (this.config_item && !this.isBlank(val)) {
         try {
             out = "[" + val + "] " + this.getConfigItemText(this.config_item, val);
@@ -236,6 +213,7 @@ x.data.fields.Text.define("getTextFromVal", function () {
             this.report(e);
         }
     }
+*/
     return out;
 });
 

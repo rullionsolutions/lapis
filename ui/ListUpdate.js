@@ -1,62 +1,22 @@
 /*global x, _ */
 "use strict";
 
-x.ui.sections.ListUpdate = x.ui.sections.List.clone({
-    id                      : "ListUpdate",
-       allow_add_records    : true,
-    allow_delete_records    : true,
-       add_record_icon      : "<i class='icon-plus'></i>",        // ordinary plus ; "&#x2795;" heavy plus sign
-    delete_record_icon      : "<i class='icon-remove'></i>",      // ordinary cross; "&#x274C;" heavy cross mark
-       add_record_label     : "Add a new record",
-    delete_record_label     : "Remove this record"
-});
 
+x.ui.sections.ListUpdate = x.ui.sections.ListEntity.clone({
+    id                      : "ListUpdate"
+});
 
 
 /**
 * To setup this grid, by setting 'entity' to the entity specified by 'entity', then calling
 */
-x.ui.sections.ListUpdate.defbind("setupSequence", "setup", function () {
-    if (typeof this.entity_id === "string" || typeof this.entity === "string") {        // 'entity' as a string property is deprecated
-        this.entity = x.data.entities[this.entity_id || this.entity];
-    }
-//    this.generated_title = this.entity.getPluralLabel();
-    this.setParentRecord();
-    this.setupColumns();
+x.ui.sections.ListUpdate.defbind("setupAddDeleteRecords", "setup", function () {
     if (this.add_record_field) {
         this.setupAddRecordField(this.add_record_field, this.add_record_unique);
     }
-    if (this.auto_fill !== false && !this.query) {
-        // this.setupLoadQuery();
-        // this.load();
-    }
-});
-
-
-/**
-* To set 'parent_record' if not already, as follows: if the owning page has 'page_key_entity' and it is the
-* @return this.parent_record
-*/
-x.ui.sections.ListUpdate.define("setParentRecord", function () {
-    if (!this.parent_record && this.entity && this.link_field) {
-        if (this.owner.page.page_key_entity && this.entity.getField(this.link_field).ref_entity === this.owner.page.page_key_entity.id) {
-            this.parent_record = this.owner.page.page_key_entity.getRecord(this.owner.page.page_key);
-        } else if (this.entity.getField(this.link_field).ref_entity === this.owner.page.entity.id) {
-            this.parent_record = this.owner.page.getMainDocument().record;
-        }
-    }
-    this.debug(this + " has parent_record " + this.parent_record);
-});
-
-
-/**
-* To create a delete record control column if 'allow_delete_records', and then to loop through the fields in
-*/
-x.ui.sections.ListUpdate.define("setupColumns", function () {
     if (this.allow_delete_records) {
         this.addDeleteControlColumn();
     }
-    this.addEntityColumns(this.entity);
 });
 
 
@@ -73,21 +33,6 @@ x.ui.sections.ListUpdate.define("addDeleteControlColumn", function () {
                     .attr("title", that.delete_record_label)
                     .text(that.delete_record_icon, true)
                     .bindClick(that, "deleteRecordIconClicked", record);
-            }
-        }
-    });
-});
-
-
-x.ui.sections.ListUpdate.define("addEntityColumns", function (entity) {
-    var that = this;
-    entity.each(function (field) {
-        var col;
-        if (field.accessible !== false) {
-            col = that.columns.add({ field: field });
-            that.trace("Adding field as column: " + field.id + " to section " + that.id);
-            if (col.id === that.link_field) {
-                col.visible = false;
             }
         }
     });
@@ -207,9 +152,6 @@ x.ui.sections.ListUpdate.define("deleteRecordIconClicked", function (event, reco
 
 x.ui.sections.ListUpdate.defbind("updateDueToDeletedRecord", "deleteRecord", function (record) {
     var id;
-    if (record.allow_delete === false) {
-        this.throwError("record cannot be deleted");
-    }
     if (this.add_record_unique && this.add_record_field_obj) {
         id = record.getField(this.add_record_field_id).get();
         if (id) {

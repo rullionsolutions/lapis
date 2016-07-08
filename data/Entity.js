@@ -8,6 +8,9 @@ x.data.entities = {};                      // singleton - not to be cloned!
 */
 x.data.Entity = x.data.FieldSet.clone({
     id                      : "Entity",
+    status                  : null,     // 'N'ew, 'C'reating, 'L'oading, 'U'nmodified, 'M'odified, 'S'aving, 'E'rror
+                                        // N > C > U > M > S > U,   N > L > U > M > S > U,   S > E,   L > E
+    deleting                : null,
     data_volume_oom         : null                      // expected data size as a power of 10
 });
 
@@ -42,6 +45,8 @@ x.data.Entity.defbind("setupRecord", "cloneInstance", function () {
     if (!this.children) {
         return;
     }
+    this.status   = this.status || 'N';
+    this.deleting = false;
     this.children = {};                     // map of arrays of record objects
     _.each(this.parent.children, function (ignore /*entity*/, entity_id) {
         that.children[entity_id] = [];
@@ -50,12 +55,18 @@ x.data.Entity.defbind("setupRecord", "cloneInstance", function () {
         key_fields = this.primary_key.split(",");
         this.primary_key = [];
         _.each(key_fields, function (key_field) {
-            that.primary_key.push(that.getField(key_field));
+            var field = that.getField(key_field);
+            if (field) {
+                that.primary_key.push(field);
+            } else {
+                that.throwError("invalid field id in primary_key: " + key_field);
+            }
         });
     }
 });
 
 
+//--------------------------------------------------------------------------------- type methods
 x.data.Entity.define("getEntity", function (entity_id) {
     return x.data.entities[entity_id];
 });
@@ -79,23 +90,51 @@ x.data.Entity.define("getRecord", function (spec) {
 });
 
 
-x.data.Entity.define("populateFromDocument", function (doc_obj) {
+//--------------------------------------------------------------------------------- instance methods
+x.data.Entity.define("isInitializing", function () {
+    if (this.status === 'N') {
+        this.throwError("status should not be N");
+    }
+    return (this.status === 'C' || this.status === 'L');
+});
+
+
+x.data.Entity.define("getReadyPromise", function () {
+    if (!this.ready_promise) {
+        if (this.status === 'L') {
+            this.ready_promise = this.data_manager.getLoadingPromise(this);
+        } else if (this.status === 'S') {
+            this.ready_promise = this.data_manager.getSavingPromise(this);
+        } else {
+            this.ready_promise = this.getNullPromise(this);
+        }
+    }
+    return this.ready_promise;
+});
+
+
+x.data.Entity.define("populateFromObject", function (obj) {
     var that = this;
     this.each(function (field) {
-        if (typeof doc_obj[field.id] === "string") {
-            field.setInitial(doc_obj[field.id]);
+        if (typeof obj[field.id] === "string") {
+            field.set(obj[field.id]);
         }
     });
-    // this.uuid = doc_obj.uuid;
+    // this.uuid = obj.uuid;
+    // this.status   = 'U';        // unmodified
+    // if (this.data_manager && this.isInitializing()) {       // if not initializing, addToCache is already called by field.set() above
+    //     this.data_manager.addToCache(this, this.full_key);
+    // }
+    // this.full_key = this.getFullKey();
     if (!this.children) {
         return;
     }
     _.each(this.parent.children, function (entity, entity_id) {
-        if (doc_obj[entity_id] && doc_obj[entity_id].length > 0) {
+        if (obj[entity_id] && obj[entity_id].length > 0) {
             that.children[entity_id] = [];
-            _.each(doc_obj[entity_id], function (doc_obj_sub) {
+            _.each(obj[entity_id], function (obj_sub) {
                 var record = entity.getRecord();
-                record.populateFromDocument(doc_obj_sub);
+                record.populateFromDocument(obj_sub);
                 record.happen("initUpdate");
                 that.children[entity_id].push(record);
             });
@@ -104,19 +143,22 @@ x.data.Entity.define("populateFromDocument", function (doc_obj) {
 });
 
 
-x.data.Entity.define("populateToDocument", function () {
+x.data.Entity.define("populateToObject", function () {
     var new_obj = {};
     this.each(function (field) {
         if (!field.isBlank()) {
             new_obj[field.id] = field.get();
         }
     });
-    new_obj.uuid = this.getUUID();
-    if (!new_obj.uuid || typeof new_obj.uuid !== "string") {
-        this.throwError("invalid uuid: " + new_obj.uuid);
-    }
+    // new_obj.uuid = this.getUUID();
+    // if (!new_obj.uuid || typeof new_obj.uuid !== "string") {
+    //     this.throwError("invalid uuid: " + new_obj.uuid);
+    // }
     _.each(this.children, function (record_array) {
         _.each(record_array, function (record) {
+            if (record.deleting) {
+                return;
+            }
             if (!new_obj[record.parent.id]) {
                 new_obj[record.parent.id] = [];
             }
@@ -127,7 +169,7 @@ x.data.Entity.define("populateToDocument", function () {
 });
 
 
-x.data.Entity.define("createChildRecord", function (entity_id, link_field) {
+x.data.Entity.define("createChildRecord", function (entity_id) {
     var record;
     if (!this.parent.children || !this.parent.children[entity_id]) {
         this.throwError("invalid entity_id: " + entity_id);
@@ -136,19 +178,41 @@ x.data.Entity.define("createChildRecord", function (entity_id, link_field) {
     this.children[entity_id] = this.children[entity_id] || [];
     this.children[entity_id].push(record);
     record.setDefaultVals();
-    record.linkToParent(this, link_field);
+    record.parent_record = this;         // support key change linkage
+    try {
+        record.getField(record.link_field).set(this.getFullKey());
+    } catch (e) {
+        this.report(e);         // should only be 'primary key field is blank...'
+    }
+    // record.linkToParent(this, link_field);
     record.happen("initCreate");
     return record;
 });
 
 
+x.data.Entity.defbind("primaryKeyChange", "afterFieldChange", function (spec) {
+    if (this.status === 'U') {
+        this.status = 'M';
+    }
+    if (this.primary_key.indexOf(spec.field) > -1) {
+        if (this.data_manager) {
+            this.data_manager.addToCache(this, this.full_key);
+        }
+        this.full_key = this.getFullKey();
+        this.eachChildRecord(function (record) {
+            record.getField(record.link_field).set(spec.field.get());
+        });
+    }
+});
+
+/*
 x.data.Entity.define("linkToParent", function (parent_record, link_field) {
     // if (!this.db_record_exists && parent_record && link_field) {
     this.parent_record = parent_record;         // support key change linkage
     this.trans_link_field = link_field;         // invoked when keyChange() calls trans.addToCache()
     // }
 });
-
+*/
 
 x.data.Entity.define("getChildRecord", function (entity_id, relative_key) {
     var found_record;
@@ -227,142 +291,48 @@ x.data.Entity.define("getPluralLabel", function () {
 });
 
 
-x.data.Entity.define("getSearchPage", function () {
-    var page_id = this.id + "_search";
-    if (typeof this.search_page === "string") {
-        page_id = this.search_page;
-    }
-    return require("../page/Page").getPage(page_id);        // can't declare at top due to circularity!!!!
-});
-
-
-x.data.Entity.define("getDisplayPage", function () {
-    var page_id = this.id + "_display";
-    if (typeof this.display_page === "string") {        // ignores this.display_page if boolean
-        page_id = this.display_page;
-    }
-    return require("../page/Page").getPage(page_id);
-});
-
-
-x.data.Entity.define("getDisplayURL", function (key) {
-    key = key || this.getFullKey();
-    return this.getDisplayPage().getSimpleURL(key);
-});
-
-
 x.data.Entity.override("isValid", function () {
     // TODO - some code sets the key of sub-records in page presave(), which is only called if the transaction is valid already
-    return x.data.FieldSet.isValid.call(this) && !this.duplicate_key /*&& this.isKeyComplete()*/ && !this.lock_failure &&
-            (!this.messages || !this.messages.error_recorded_since_clear);
+    return x.data.FieldSet.isValid.call(this) && !this.duplicate_key /*&& this.isKeyComplete()*/ && (this.status !== 'E') &&
+            (!this.messages || !this.messages.error_recorded);
 });
 
 
-
-
-// copy values from fieldset's fields for each field whose id matches, except for keys, using setInitial()
-x.data.Entity.override("copyFrom", function (fieldset) {
-    this.each(function (field) {
-        if (fieldset.getField(field.id) && !field.isKey()) {
-            field.setInitial(fieldset.getField(field.id).get());
+x.data.Entity.define("setDelete", function (bool) {
+    if (!this.isModifiable()) {
+        this.throwError("fieldset not modifiable");
+    }
+    if (this.deleting !== bool) {
+        this.trace("set modified");
+        this.modified = true;
+        if (this.trans) {
+            this.trans.setModified();
         }
-    });
-});
-
-
-//copy values from query's columns for each field whose id matches, except for keys, using setInitial()
-x.data.Entity.define("copyFromQuery", function (query) {
-    this.each(function (field) {
-        if (!field.isKey()) {
-            field.copyFromQuery(query);
-        }
-    });
-});
-
-
-x.data.Entity.define("presave", function (outcome_id) {
-    this.presave_called = true;
-    this.happen("presave", outcome_id);
-});
-
-
-// This function is NOT defined in an entity unless it actually does something
-// - so the existence of this function indicates whether or not record security is applicable for the entity.
-// x.data.Entity.define("addSecurityCondition", function (query, session) {
-// });	//---addSecurityCondition
-x.data.Entity.define("renderLineItem", function (element /*, render_opts*/) {
-    var display_page = this.getDisplayPage(),
-        anchor = element.makeAnchor(this.getLabel("list_item"), display_page && display_page.getSimpleURL(this.getFullKey()));
-
-    return anchor;
-});
-
-
-x.data.Entity.define("renderTile", function (parent_elem, render_opts) {
-    var div_elem = parent_elem.makeElement("div", "css_tile", this.getUUID());
-    this.addTileURL(div_elem, render_opts);
-    this.addTileContent(div_elem, render_opts);
-});
-
-
-x.data.Entity.define("addTileURL", function (div_elem /*, render_opts*/) {
-    var display_page = this.getDisplayPage();
-    if (display_page) {
-        div_elem.attr("url", display_page.getSimpleURL(this.getKey()));
     }
+    this.deleting = bool;
 });
 
 
-x.data.Entity.define("addTileContent", function (div_elem /*, render_opts*/) {
-    if (this.glyphicon) {
-        div_elem.makeElement("i", this.glyphicon);
-        div_elem.text("&nbsp;");
-    } else if (this.icon) {
-        div_elem.makeElement("img")
-            .attr("alt", this.title)
-            .attr("src", "/cdn/" + this.icon);
-    }
-    div_elem.text(this.getLabel("tile"));
+x.data.Entity.define("isDelete", function () {
+    return this.deleting;
 });
 
 
-x.data.Entity.define("getDotGraphNode", function (highlight) {
-    var key = this.getFullKey(),
-        out = key + " [ label=\"" + this.getLabel("dotgraph") + "\" URL=\"" + this.getDisplayURL(key) + "\"";
-
-    if (highlight) {
-        out += " style=\"filled\" fillcolor=\"#f8f8f8\"";
-    }
-    return out + "]; ";
+// this can be called on an unmodified parent record containing modified children
+x.data.Entity.define("saveInternal", function () {
+    // if (this.status === 'M' || this.status === 'C' || this.deleting) {
+        this.status = 'S';
+        this.ready_promise = null;
+        this.getReadyPromise();
+    // } else {
+    //     this.throwError("invalid status: " + this.status + ", and deleting: " + this.deleting);
+    // }
 });
 
 
-x.data.Entity.define("getDotGraphEdge", function (parent_key) {
-    var out = "";
-    if (parent_key) {
-        out = parent_key + " -> " + this.getKey() + ";";            // add label property if relevant
-    }
-    return out;
-});
 
 
-x.data.Entity.define("replaceTokenRecord", function (key) {
-    var page,
-        row;
 
-    page = this.getDisplayPage();
-    if (!page) {
-        return "(ERROR: no display page for entity: " + this.id + ")";
-    }
-    row  = this.getRow(key);
-    if (!row) {
-        return "(ERROR: record not found: " + this.id + ":" + key + ")";
-    }
-    return "<a href='" + page.getSimpleURL(row.getKey()) + "'>" + row.getLabel("article_link") + "</a>";
-    // return XmlStream.left_bracket_subst + "a href='" +
-    //     page.getSimpleURL(row.getKey()) + "'" + XmlStream.right_bracket_subst + row.getLabel("article_link") +
-    //     XmlStream.left_bracket_subst + "/a" + XmlStream.right_bracket_subst;
-});
 
 
 x.data.Entity.define("setupDateRangeValidation", function (start_dt_field_id, end_dt_field_id) {

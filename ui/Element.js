@@ -1,7 +1,6 @@
 /*global x, _ */
 "use strict";
 
-x.ui = x.ui || {};
 
 /**
 * To represent an HTML Element

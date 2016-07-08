@@ -85,6 +85,7 @@ x.store.StoreIndexedDB.override("save", function (doc_obj) {
 
         store.put(doc_obj);
         tx.oncomplete = function () {
+            that.debug("doc saved: " + doc_obj[that.create_properties.keyPath]);
             resolve(doc_obj);
         };
         tx.onerror = function () {
@@ -112,7 +113,7 @@ x.store.StoreIndexedDB.override("get", function (id) {
                 that.debug("doc not found: " + id);
                 reject("doc not found: " + id);
             } else {
-                that.trace("doc found: " + id);
+                that.debug("doc loaded: " + id);
                 resolve(doc_obj);
             }
         };

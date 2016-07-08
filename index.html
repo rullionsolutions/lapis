@@ -158,6 +158,7 @@
 		<script type="text/javascript" src="/cdn/jquery-v1.11.3/jquery-1.11.3.min.js"> </script>
 		<script type="text/javascript" src="/cdn/twitter-bootstrap-v2.3.2/js/bootstrap.min.js"> </script>
 		<script type="text/javascript" src="/cdn/underscore/underscore-min.js"> </script>
+		<script type="text/javascript" src="/cdn/medialize/URI.js"> </script>
 
 		<script type="text/javascript" src="base/Base.js"> </script>
 		<script type="text/javascript" src="base/Happen.js"> </script>
@@ -180,6 +181,7 @@
 		<script type="text/javascript" src="store/StoreCouch.js"> </script>
 		<script type="text/javascript" src="store/StoreIndexedDB.js"> </script>
 
+		<script type="text/javascript" src="ui/Controller.js"> </script>
 		<script type="text/javascript" src="ui/Element.js"> </script>
 		<script type="text/javascript" src="ui/Page.js"> </script>
 		<script type="text/javascript" src="ui/Page.Tab.js"> </script>
@@ -188,20 +190,26 @@
 		<script type="text/javascript" src="ui/Section.js"> </script>
 		<script type="text/javascript" src="ui/Form.js"> </script>
 		<script type="text/javascript" src="ui/Create.js"> </script>
+		<script type="text/javascript" src="ui/Display.js"> </script>
+		<script type="text/javascript" src="ui/Update.js"> </script>
 		<script type="text/javascript" src="ui/RecordSet.js"> </script>
 		<script type="text/javascript" src="ui/List.js"> </script>
 		<script type="text/javascript" src="ui/List.Column.js"> </script>
+		<script type="text/javascript" src="ui/ListEntity.js"> </script>
+		<script type="text/javascript" src="ui/ListQuery.js"> </script>
 		<script type="text/javascript" src="ui/ListUpdate.js"> </script>
 		<script type="text/javascript" src="ui/MessageManager.js"> </script>
 
 		<script type="text/javascript" src="sy/list/sy_list.js"> </script>
 		<script type="text/javascript" src="sy/list/sy_list_item.js"> </script>
 		<script type="text/javascript" src="sy/list/sy_list_create.js"> </script>
+		<script type="text/javascript" src="sy/list/sy_list_display.js"> </script>
+		<script type="text/javascript" src="sy/list/sy_list_update.js"> </script>
 
 		<script type="text/javascript">
 
 			var store,
-				page;
+				controller;
 
 			$(document).ready( function() {
 			    store = x.store.StoreIndexedDB.clone({
@@ -209,11 +217,8 @@
 					create_properties: { keyPath: "uuid" }
 				});
 
-				store.start();
-
-
-			    page = x.ui.pages.sy_list_create.clone({
-			    	id 			: "sy_list_create",
+			    controller = x.ui.Controller.clone({
+			    	id 			: "singleton",
 			    	instance 	: true,
 			    	store 		: store,
 			    	selectors: {
@@ -228,7 +233,14 @@
 					}
 			    });
 
-			    page.render();
+				store.start()
+					.then(function () {
+						controller.hashChange();
+					});
+
+				window.onhashchange = function () {
+					controller.hashChange();
+				};
 
 			});
 

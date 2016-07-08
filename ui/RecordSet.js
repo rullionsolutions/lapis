@@ -4,6 +4,12 @@
 x.ui.sections.RecordSet = x.ui.sections.Section.clone({
     id                  : "RecordSet",
     records             : null,               // array of record objects
+       allow_add_records: true,
+    allow_delete_records: true,
+       add_record_icon  : "<i class='icon-plus'></i>",        // ordinary plus ; "&#x2795;" heavy plus sign
+    delete_record_icon  : "<i class='icon-remove'></i>",      // ordinary cross; "&#x274C;" heavy cross mark
+       add_record_label : "Add a new record",
+    delete_record_label : "Remove this record",
     text_no_records     : "no records",
     text_one_records    : "1 record",
     text_many_records   : "records",
@@ -34,17 +40,25 @@ x.ui.sections.RecordSet.defbind("initializeRecordSet", "cloneInstance", function
 
 
 x.ui.sections.RecordSet.define("addRecord", function (record) {
+    if (!this.allow_add_records) {
+        this.throwError("records cannot be added to this RecordSet");
+    }
     this.records.push(record);
     this.happen("addRecord", record);
     this.renderRecord(record);
 });
 
 
-
 x.ui.sections.RecordSet.define("deleteRecord", function (record) {
     var i = this.records.indexOf(record);
     if (i < 0) {
         this.throwError("record not in this RecordSet: " + record.getUUID());
+    }
+    if (!this.allow_delete_records) {
+        this.throwError("records cannot be deleted from this RecordSet");
+    }
+    if (record.allow_delete === false) {
+        this.throwError("this record cannot be deleted");
     }
     record.setDelete(true);
     this.records.splice(i, 1);
@@ -74,21 +88,23 @@ x.ui.sections.RecordSet.override("isValid", function () {
     return valid;
 });
 
-
+/*
 x.ui.sections.RecordSet.defbind("renderRecordSet", "render", function () {
     this.happen("renderBeforeRecords");
     this.renderRecords();
     this.happen("renderAfterRecords" );
 });
-
+*/
 
 x.ui.sections.RecordSet.define("renderRecords", function () {
     var i;
+    this.happen("renderBeforeRecords");
     for (i = 0; i < this.records.length; i += 1) {
         if (!this.records[i].deleting) {
             this.renderRecord(this.records[i]);
         }
     }
+    this.happen("renderAfterRecords" );
 });
 
 
