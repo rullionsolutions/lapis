@@ -16,7 +16,6 @@ x.session.MessageManager = x.base.Base.clone({
 */
 x.session.MessageManager.defbind("initialize", "cloneInstance", function () {
     this.messages = [];
-    this.number = 0;
     this.error_recorded = false;
 });
 
@@ -30,7 +29,6 @@ x.session.MessageManager.define("add", function (spec) {
         this.throwError("Message must include a text property");
     }
     this.messages.push(spec);
-    this.number += 1;
     if (!spec.type) {
         spec.type = "E";
     }
@@ -184,6 +182,7 @@ x.session.MessageManager.define("render", function (elmt, prefix, type) {
 */
 x.session.MessageManager.define("clear", function () {
     this.messages = [];
+    this.error_recorded = false;
 });
 
 

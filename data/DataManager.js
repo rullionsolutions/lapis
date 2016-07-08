@@ -150,34 +150,54 @@ x.data.DataManager.define("isValid", function () {
 });
 
 
-x.data.DataManager.define("getRecordCount", function (spec) {
-    return this.getRecordCountFullKey(spec) + this.getRecordCountPartialKey(spec);
+x.data.DataManager.define("getRecordCount", function () {
+    var count_obj = this.getRecordCountFullKey();
+    this.getRecordCountPartialKey(count_obj);
+    count_obj.           total = count_obj.full_key_total      + count_obj.partial_key_total;
+    count_obj.  modified_total = count_obj.full_key_modified   + count_obj.partial_key_modified;
+    count_obj.unmodified_total = count_obj.full_key_unmodified + count_obj.partial_key_unmodified;
+    return count_obj;
 });
 
 
-x.data.DataManager.define("getRecordCountFullKey", function (spec) {
-    var count = 0;
-    if (!spec.partial_key_only) {
-        this.doFullKeyRecords(function (record) {
-            if (!spec.modified_only || record.isModified()) {
-                count += 1;
-            }
-        });
-    }
-    return count;
+x.data.DataManager.define("getRecordCountFullKey", function (count_obj) {
+    count_obj = count_obj || {};
+    count_obj.full_key_modified   = 0;
+    count_obj.full_key_unmodified = 0;
+    count_obj.full_key_valid      = 0;
+    count_obj.full_key_invalid    = 0;
+    count_obj.full_key_total      = 0;
+    this.doFullKeyRecords(function (record) {
+        count_obj.full_key_total += 1;
+        if (record.isModified()) {
+            count_obj.full_key_modified +=1;
+        } else {
+            count_obj.full_key_unmodified +=1;
+        }
+        if (record.isValid()) {
+            count_obj.full_key_valid +=1;
+        } else {
+            count_obj.full_key_invalid +=1;
+        }
+    });
+    return count_obj;
 });
 
 
-x.data.DataManager.define("getRecordCountPartialKey", function (spec) {
-    var count = 0;
-    if (!spec.full_key_only) {
-        this.doPartialKeyRecords(function (record) {
-            if ((typeof spec.modified !== "boolean") || (spec.modified === record.isModified())) {
-                count += 1;
-            }
-        });
-    }
-    return count;
+x.data.DataManager.define("getRecordCountPartialKey", function (count_obj) {
+    count_obj = count_obj || {};
+    count_obj.partial_key_modified   = 0;
+    count_obj.partial_key_unmodified = 0;
+    count_obj.partial_key_total      = 0;
+    this.doPartialKeyRecords(function (record) {
+        count_obj.partial_key_total += 1;
+        if (record.isModified()) {
+            count_obj.partial_key_modified +=1;
+        } else {
+            count_obj.partial_key_unmodified +=1;
+        }
+    });
+    return count_obj;
 });
 
 
@@ -188,15 +208,14 @@ x.data.DataManager.define("save", function () {
 
 
 x.data.DataManager.define("presaveValidation", function () {
-    var count = this.getRecordCount({ partial_key_only: true });
-    if (count > 0) {
-        this.throwError(count + " partial-key record(s) still present");
+    var count_obj = this.getRecordCount();
+    if (count_obj.partial_key_total > 0) {
+        this.throwError(count_obj.partial_key_total + " partial-key record(s) still present");
     }
-    count = this.getRecordCount({ full_key_only: true, modified: true });
-    if (count === 0) {
+    if (count_obj.modified_total === 0) {
         this.throwError("no modified record(s) to save");
     }
-    if (!this.isValid()) {
+    if (count_obj.full_key_invalid > 0) {
         this.throwError("contains invalid record(s)");
     }
 });
@@ -211,10 +230,14 @@ x.data.DataManager.define("saveInternal", function () {
 });
 
 
-x.data.DataManager.define("afterSave", function (record) {
+x.data.DataManager.define("afterSaveUpdate", function (record) {
     record.status = 'U';
     record.modified = false;
-    if (record.deleting) {
-        delete this.curr_records[record.id][record.getFullKey()];
-    }
+});
+
+
+x.data.DataManager.define("afterSaveDelete", function (record) {
+    record.status = 'E';
+    record.modified = false;
+    delete this.curr_records[record.id][record.getFullKey()];
 });

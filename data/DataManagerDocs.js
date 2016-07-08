@@ -31,18 +31,28 @@ x.data.DataManagerDocs.override("getLoadingPromise", function (record) {
 
 x.data.DataManagerDocs.override("getSavingPromise", function (record) {
     var that = this,
-        doc_obj;
+        doc_obj,
+        promise;
 
     if (record.parent_record) {
         return record.parent_record.getReadyPromise();
     }
-    doc_obj = record.populateToObject();
-    doc_obj[this.uuid_prop] = record.getUUID();
-    // doc_obj.title           = record.getLabel();
-    return this.store.save(doc_obj)
-        .then(function (/*doc_obj*/) {
-            that.afterSave(record);
-        })
+
+    if (record.isDelete()) {
+        promise = this.store.delete(record.getUUID())
+            .then(function (/*doc_obj*/) {
+                that.afterSaveDelete(record);
+            });
+    } else {
+        doc_obj = record.populateToObject();
+        doc_obj[this.uuid_prop] = record.getUUID();
+        // doc_obj.title           = record.getLabel();
+        promise = this.store.save(doc_obj)
+            .then(function (/*doc_obj*/) {
+                that.afterSaveUpdate(record);
+            });
+    }
+    return promise
         .then(null, function (error) {
             record.error("record not saved: " + record.getUUID());
             record.report(error);

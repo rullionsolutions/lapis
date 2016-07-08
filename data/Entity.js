@@ -58,6 +58,9 @@ x.data.Entity.defbind("setupRecord", "cloneInstance", function () {
             var field = that.getField(key_field);
             if (field) {
                 that.primary_key.push(field);
+                if (!field.mandatory) {
+                    that.throwError("key field must be mandatory: " + key_field);
+                }
             } else {
                 that.throwError("invalid field id in primary_key: " + key_field);
             }
@@ -190,7 +193,15 @@ x.data.Entity.define("createChildRecord", function (entity_id) {
 });
 
 
-x.data.Entity.defbind("primaryKeyChange", "afterFieldChange", function (spec) {
+x.data.Entity.defbind("setKeyFieldsFixed", "initUpdate", function () {
+    this.checkKey(this.getFullKey());
+    _.each(this.primary_key, function (key_field) {
+        key_field.fixed_key = true;
+    });
+});
+
+
+x.data.Entity.defbind("checkForPrimaryKeyChange", "afterFieldChange", function (spec) {
     if (this.status === 'U') {
         this.status = 'M';
     }
@@ -236,6 +247,69 @@ x.data.Entity.define("eachChildRecord", function (funct, entity_id) {
             that.eachChildRecord(funct, temp_entity_id);
         });
     }
+});
+
+
+x.data.Entity.define("checkKey", function (key) {
+    var pieces,
+        pieces_required,
+        val,
+        i;
+
+    if (typeof key !== "string" || key === "") {
+        this.throwError("key must be a non-blank string");
+    }
+    pieces = key.split(".");            // Argument is NOT a regex
+    pieces_required = this.getKeyPieces();
+    if (pieces_required !== pieces.length) {
+        this.throwError(pieces_required + " key pieces required, " + pieces.length + " found in " + key);
+    }
+    for (i = 0; i < pieces.length; i += 1) {
+        val = pieces[i];
+        if (!val) {
+            this.throwError(i + "th key piece is blank in " + key);
+        }
+        if (val && !val.match(/^[a-zA-Z0-9_\-]+$/)) {
+            this.throwError("invalid character in key piece: " + val);
+        }
+    }
+});
+
+
+x.data.Entity.define("isKeyComplete", function (key) {
+    if (typeof key !== "string") {
+        key = this.getKey();
+    }
+    try {
+        this.checkKey(key);
+        return true;
+    } catch (ignore) {
+        return false;
+    }
+});
+
+
+x.data.Entity.define("getKeyPieces", function () {
+    var count = 0;
+    _.each(this.primary_key, function (key_field) {
+        count += key_field.getKeyPieces();
+    });
+    return count;
+});
+
+
+x.data.Entity.define("getKeyLength", function () {
+    var that = this,
+        delim = 0;
+
+    if (typeof this.key_length !== "number") {
+        this.key_length = 0;
+        _.each(this.primary_key, function (key_field) {
+            that.key_length += delim + key_field.getDataLength();
+            delim = 1;
+        });
+    }
+    return this.key_length;
 });
 
 
@@ -292,9 +366,7 @@ x.data.Entity.define("getPluralLabel", function () {
 
 
 x.data.Entity.override("isValid", function () {
-    // TODO - some code sets the key of sub-records in page presave(), which is only called if the transaction is valid already
-    return x.data.FieldSet.isValid.call(this) && !this.duplicate_key /*&& this.isKeyComplete()*/ && (this.status !== 'E') &&
-            (!this.messages || !this.messages.error_recorded);
+    return x.data.FieldSet.isValid.call(this) && (this.status !== 'E') && (!this.messages || !this.messages.error_recorded);
 });
 
 

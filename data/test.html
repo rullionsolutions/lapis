@@ -70,8 +70,8 @@
 
 	    x.data.Entity.clone({ id: "tree", title: "Tree", primary_key: "species" });
 		x.data.entities.tree.addFields([
-	    	{ id: "species", type: "Text", label: "Species" },
-	    	{ id: "location", type: "Text", label: "Location" }
+	    	{ id: "species" , type: "Text", label: "Species" , mandatory: true },
+	    	{ id: "location", type: "Text", label: "Location", mandatory: true }
     	]);
 
 	    store.start()
@@ -152,9 +152,64 @@
 			.then(function () {
 				var record = dmgr.getRecordNullIfNotInCache("tree", "Elm");
 				assert(record && (record.getUUID() === "tree:Elm"), "Elm record is in cache");
-
+				assert(record.getField("location").getText() === "Ashton-under-Lyme", "saved change retrieved");
 				assert(record.status === 'U', "record is unmodified according to status property: " + record.status);
 				assert(!record.isModified(), "record is unmodified according to isModified()");
+
+				try {
+					record.getField("species").set("Oak");
+					assert(false, "could change key of existing record");
+				} catch (e) {
+					assert(true , "can't change key of existing record");
+				}
+				assert(record.status === 'U', "record is still unmodified according to status property: " + record.status);
+				assert(!record.isModified(), "record is still unmodified according to isModified()");
+				assert(dmgr.getRecordCount().modified_total === 0, "no modified records");
+				try {
+					dmgr.save();
+					assert(false, "can save if no modified records to save");
+				} catch (e) {
+					assert(true , "can't save if no modified records to save");
+				}
+				record.getField("location").set("");
+				assert(!record.isValid(), "location set blank, record is not valid");
+				assert(!record.getField("location").isValid(), "location set blank, field is not valid");
+				try {
+					dmgr.save();
+					assert(false, "can save if record(s) invalid");
+				} catch (e) {
+					assert(true , "can't save if record(s) invalid");
+				}
+
+				record.getField("location").set("Bolton");
+				try {
+					dmgr.save();
+					assert(record.status === 'S', "record is saving");
+				} catch (e) {
+					dmgr.report(e);
+				}
+				return record.getReadyPromise();
+			})
+			.then(function () {
+				var record = dmgr.getRecordNullIfNotInCache("tree", "Elm");
+				assert(record && (record.getUUID() === "tree:Elm"), "Elm record is in cache");
+				assert(record.getField("location").getText() === "Bolton", "saved change retrieved");
+				assert(record.status === 'U', "record is unmodified according to status property: " + record.status);
+				assert(!record.isModified(), "record is unmodified according to isModified()");
+
+				record.setDelete(true);
+				assert(record.isDelete(), "Elm record to be deleted");
+				try {
+					dmgr.save();
+					assert(record.status === 'S', "record is saving");
+				} catch (e) {
+					dmgr.report(e);
+				}
+				return record.getReadyPromise();
+			})
+			.then(function () {
+				var record = dmgr.getRecordNullIfNotInCache("tree", "Elm");
+				assert(!record, "Elm record is NOT in cache");
 			})
 			.then(null, function (error) {
 				assert(false, error);
