@@ -4,7 +4,7 @@
 /**
 * To represent a column in a table
 */
-x.ui.sections.List.Column = x.ui.sections.Section.clone({
+x.ui.sections.List.Column = x.base.Base.clone({
     id: "List.Column",
     visible : true,
     hover_text_icon : "&#x24D8;"

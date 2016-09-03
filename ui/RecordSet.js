@@ -3,7 +3,9 @@
 
 x.ui.sections.RecordSet = x.ui.sections.Section.clone({
     id                  : "RecordSet",
+    dataset             : null,
     records             : null,               // array of record objects
+    record_archetype    : "Record",
        allow_add_records: true,
     allow_delete_records: true,
        add_record_icon  : "<i class='icon-plus'></i>",        // ordinary plus ; "&#x2795;" heavy plus sign
@@ -39,13 +41,33 @@ x.ui.sections.RecordSet.defbind("initializeRecordSet", "cloneInstance", function
 });
 
 
+x.ui.sections.RecordSet.define("linkToDataSet", function (dataset) {
+    var that = this;
+
+    dataset.defbind("addRecordLinkage" + this.id, "recordAdded", function (record) {
+        that.addRecord(record);
+    });
+
+    dataset.defbind("removeRecordLinkage" + this.id, "recordRemoved", function (record) {
+        that.deleteRecord(record);
+    });
+
+    dataset.eachRecord(function (record) {
+        that.addRecord(record);
+    });
+});
+
+
 x.ui.sections.RecordSet.define("addRecord", function (record) {
+    var item = this[this.record_archetype].clone({ id: record.getFullKey(), fieldset: record, owner: this });
     if (!this.allow_add_records) {
         this.throwError("records cannot be added to this RecordSet");
     }
-    this.records.push(record);
+    this.records.push(item);
     this.happen("addRecord", record);
-    this.renderRecord(record);
+    if (this.item_elmt) {
+        item.render(this.item_elmt);
+    }
 });
 
 
@@ -88,28 +110,20 @@ x.ui.sections.RecordSet.override("isValid", function () {
     return valid;
 });
 
-/*
-x.ui.sections.RecordSet.defbind("renderRecordSet", "render", function () {
-    this.happen("renderBeforeRecords");
-    this.renderRecords();
-    this.happen("renderAfterRecords" );
-});
-*/
 
-x.ui.sections.RecordSet.define("renderRecords", function () {
+x.ui.sections.RecordSet.defbind("renderItemSet", "render", function () {
     var i;
     this.happen("renderBeforeRecords");
+    this.item_elmt = this.getItemSetElement();
     for (i = 0; i < this.records.length; i += 1) {
-        if (!this.records[i].deleting) {
-            this.renderRecord(this.records[i]);
-        }
+        this.records[i].render(this.item_elmt);
     }
     this.happen("renderAfterRecords" );
 });
 
 
-x.ui.sections.RecordSet.define("renderRecord", function (/*record*/) {
-    this.throwError("not implemented");
+x.ui.sections.RecordSet.define("getItemSetElement", function () {
+    return this.getSectionElement().makeElement(this.main_tag);
 });
 
 

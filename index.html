@@ -64,7 +64,7 @@
 						</ul>
 					</li>
 					<li class="css_logged_in" id="css_logout_button">
-						<button class="btn navbar-btn" onclick="x.ui.main.logout()">Log-out</button>
+						<button class="btn navbar-btn btn-small" onclick="x.ui.main.logout()">Log-out</button>
 					</li>
 				</ul>
 			</div><!-- /.navbar-inner -->
@@ -96,9 +96,9 @@
 					</div>
 					<div class="page-header">
 						<h1>
-							<span class="css_page_header_title"></span>
+							<span id="css_page_header_title"></span>
 						</h1>
-						<p class="css_page_header_descr lead"></p>
+						<p id="css_page_header_descr" class="lead"></p>
 					</div>
 
 					<ul id="css_page_tabs" class="nav nav-tabs hidden">
@@ -120,17 +120,6 @@
 		<div class="hidden-phone" style="height: 30px">
 		</div>
 
-	 	<footer>
-			<div>
-				<div id="css_footer_copyright"></div>
-			</div>
-			<div>
-				<div id="css_privacy_msg"     ><a href="guest.html?page_id=privacy">Accessibility, Privacy and Cookies</a></div>
-			</div>
-			<div>
-				<div id="css_footer_datetime" ></div>
-			</div>
-		</footer>
 
 		<div id="css_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="css_modal_title" aria-hidden="true">
   			<div class="modal-dialog" role="document">
@@ -175,7 +164,10 @@
 		<script type="text/javascript" src="data/Number.js"> </script>
 		<script type="text/javascript" src="data/Reference.js"> </script>
 		<script type="text/javascript" src="data/Textarea.js"> </script>
-		<script type="text/javascript" src="data/Document.js"> </script>
+		<script type="text/javascript" src="data/DataManager.js"> </script>
+		<script type="text/javascript" src="data/DataManagerDocs.js"> </script>
+		<script type="text/javascript" src="data/DataSet.js"> </script>
+		<script type="text/javascript" src="data/DataSetConditional.js"> </script>
 
 		<script type="text/javascript" src="store/Store.js"> </script>
 		<script type="text/javascript" src="store/StoreCouch.js"> </script>
@@ -193,13 +185,17 @@
 		<script type="text/javascript" src="ui/Display.js"> </script>
 		<script type="text/javascript" src="ui/Update.js"> </script>
 		<script type="text/javascript" src="ui/RecordSet.js"> </script>
+		<script type="text/javascript" src="ui/RecordSet.Record.js"> </script>
 		<script type="text/javascript" src="ui/List.js"> </script>
+		<script type="text/javascript" src="ui/List.Row.js"> </script>
 		<script type="text/javascript" src="ui/List.Column.js"> </script>
 		<script type="text/javascript" src="ui/ListEntity.js"> </script>
 		<script type="text/javascript" src="ui/ListQuery.js"> </script>
 		<script type="text/javascript" src="ui/ListUpdate.js"> </script>
-		<script type="text/javascript" src="ui/MessageManager.js"> </script>
 
+		<script type="text/javascript" src="session/MessageManager.js"> </script>
+
+		<script type="text/javascript" src="sy/home.js"> </script>
 		<script type="text/javascript" src="sy/list/sy_list.js"> </script>
 		<script type="text/javascript" src="sy/list/sy_list_item.js"> </script>
 		<script type="text/javascript" src="sy/list/sy_list_create.js"> </script>
@@ -209,6 +205,7 @@
 		<script type="text/javascript">
 
 			var store,
+				data_manager,
 				controller;
 
 			$(document).ready( function() {
@@ -217,19 +214,23 @@
 					create_properties: { keyPath: "uuid" }
 				});
 
+		    	data_manager = x.data.DataManagerDocs.clone({ id: "Test", store: store, instance: true }),
+
 			    controller = x.ui.Controller.clone({
-			    	id 			: "singleton",
-			    	instance 	: true,
-			    	store 		: store,
+			    	id          : "singleton",
+			    	instance    : true,
+			    	data_manager: data_manager,
 			    	selectors: {
 					    content  : "#css_content",
 					    messages : "#css_messages",
 					    links    : "#css_page_links",
 					    buttons  : "#css_page_buttons",
 					    tabs     : "#css_page_tabs",
-					    unisrch  : "input#css_page_unisrch",
-					    datetime : "div#css_footer_datetime",
-					    copyright: "div#css_footer_copyright"
+					    title    : "#css_page_header_title",
+					    descr    : "#css_page_header_descr"
+					    // unisrch  : "input#css_page_unisrch",
+					    // datetime : "div#css_footer_datetime",
+					    // copyright: "div#css_footer_copyright"
 					}
 			    });
 

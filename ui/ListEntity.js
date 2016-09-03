@@ -15,7 +15,7 @@ x.ui.sections.ListEntity.defbind("setupFromEntity", "setup", function () {
         this.entity = x.data.entities[this.entity_id || this.entity];
     }
 //    this.generated_title = this.entity.getPluralLabel();
-    this.setParentRecord();
+    this.deriveParentRecord();
     this.setupColumns();
     // this.loadRecords();
 });
@@ -25,17 +25,29 @@ x.ui.sections.ListEntity.defbind("setupFromEntity", "setup", function () {
 * To set 'parent_record' if not already, as follows: if the owning page has 'page_key_entity' and it is the
 * @return this.parent_record
 */
-x.ui.sections.ListEntity.define("setParentRecord", function () {
-    if (!this.parent_record && this.entity && this.link_field) {
-        if (this.owner.page.page_key_entity && this.entity.getField(this.link_field).ref_entity === this.owner.page.page_key_entity.id) {
-            this.document = this.owner.page.getMainDocument();
-            // this.parent_record = this.owner.page.page_key_entity.getRecord(this.owner.page.page_key);
-        } else if (this.entity.getField(this.link_field).ref_entity === this.owner.page.entity.id) {
-            this.document = this.owner.page.getMainDocument();
-            // this.parent_record = this.document.getRecord();
-        }
+x.ui.sections.ListEntity.define("deriveParentRecord", function () {
+    if (!this.dataset && this.entity && this.link_field) {
+        this.setupDataSet(this.entity.id, this.link_field, this.owner.page.page_key);
+
+        // if (this.owner.page.page_key_entity && this.entity.getField(this.link_field).ref_entity === this.owner.page.page_key_entity.id) {
+            // this.document = this.owner.page.getMainDocument();
+            // this.setParentRecord(this.owner.page.data_manager.getRecord(this.owner.page.page_key_entity.id, this.owner.page.page_key));
+
+        // } else if (this.entity.getField(this.link_field).ref_entity === this.owner.page.entity.id) {
+            // this.document = this.owner.page.getMainDocument();
+            // this.setParentRecord(this.owner.page.getPrimaryRecord());
+        // }
     }
-    this.debug(this + " has parent_record " + this.parent_record);
+    // this.debug(this + " has parent_record " + this.parent_record);
+});
+
+
+x.ui.sections.ListEntity.define("setupDataSet", function (entity_id, link_field_id, link_field_value) {
+    // this.parent_record = record;
+    this.dataset = x.data.DataSetConditional.clone({ id: "DataSet." + this.id, instance: true, data_manager: this.owner.page.data_manager });
+    this.dataset.addCriterion({ entity_id: entity_id });
+    this.dataset.addCriterion({ field_id: link_field_id, value: link_field_value });
+    this.linkToDataSet(this.dataset);
 });
 
 
@@ -61,7 +73,7 @@ x.ui.sections.ListEntity.define("addEntityColumns", function (entity) {
     });
 });
 
-
+/*
 x.ui.sections.ListEntity.define("loadRecords", function () {
     var that = this,
         allow_add_records = this.allow_add_records;
@@ -77,4 +89,4 @@ x.ui.sections.ListEntity.define("loadRecords", function () {
         this.entity.id);
     this.allow_add_records = allow_add_records;
 });
-
+*/

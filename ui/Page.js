@@ -14,8 +14,8 @@ x.ui.Page = x.base.Base.clone({
     tab_sequence            : false,
     tab_forward_only        : false,
     internal_state          : 0,
+    data_manager            : null,
 //    page_tab              : 0
-    primary_document        : null,
     render_opts             : null,
     tabs                    : x.base.OrderedMap.clone({ id: "Page.tabs" }),
     sections                : x.base.OrderedMap.clone({ id: "Page.sections" }),
@@ -83,6 +83,8 @@ x.ui.Page.defbind("cloneInstance", "cloneInstance", function () {
         this.page_tab = this.tabs.get(0);
     }
     this.happen("setupEnd");
+    this.setTitle(this.title);
+    this.setDescription(this.descr);
 });
 
 
@@ -274,81 +276,20 @@ x.ui.Page.define("moveToFirstErrorTab", function () {
 
 
 x.ui.Page.define("save", function () {
-    this.main_document.save();
+    this.data_manager.save();
 });
-
-/**
-* If page is valid, attempt to commit transaction; if failure occurs during save, page is cancelled
-x.ui.Page.define("save", function () {
-    var i;
-
-    if (!this.trans.isValid()) {            // All errors should be reported "locally", if appropriate for user
-        this.error("Page.save() exiting - trans is initially not valid: " + this.trans.messages.getString());
-//        this.trans.reportErrors();
-        this.session.messages.add({ type: 'E', text: "not saved due to error" });
-        this.moveToFirstErrorTab();
-        return;
-    }
-    try {
-        this.presave();
-        if (!this.trans.isValid()) {            // All errors should be reported "locally", if appropriate for user
-            this.debug("Page.save() cancelling - trans is not valid after presave()");
-            throw { type: 'E', text: "not saved due to error" };
-        }
-        if (this.performing_wf_nodes) {
-            for (i = 0; i < this.performing_wf_nodes.length; i += 1) {
-                this.performing_wf_nodes[i].complete(this.outcome_id);
-            }
-        }
-        if (!this.trans.isValid()) {            // failures in performing_wf_nodes[i].complete() are irreversible
-            this.debug("Page.save() cancelling - trans is not valid after performing_wf_nodes[...].complete()");
-            throw { type: 'E', text: "not saved due to error" };
-        }
-        if (!this.allow_no_modifications && !this.trans.isModified()) {
-            throw { type: 'W', text: "no changes made" };
-        }
-        this.trans.save(this.outcome_id);                    // commit transaction
-        this.reportSaveMessage();
-        this.happen("success");
-        this.redirect_url = this.exit_url_save || this.exit_url || this.session.last_non_trans_page_url;
-        this.sendEmails();
-        this.http_status  = 204;
-        this.http_message = "saved";
-        this.prompt_message = null;
-        this.active = false;        // clearPageCache() calls cancel() on ALL pages including this one, so set active false first
-    } catch (e) {
-//        this.trans.reportErrors();
-        if (e.type && e.text) {
-            this.session.messages.add({ text: e.text, type: e.type });
-        } else {
-            this.report(e);
-            this.session.messages.add({ text: "save failed", type: "E" });
-            this.session.messages.add({ text: e, type: "E"});
-        }
-
-        this.error("Page.save() cancelling - trans.save() or sendEmails() failed: " + this.trans.messages.getString());
-        this.happen("failure");
-        this.cancel();
-    }
-});
-*/
 
 
 /**
 * Cancel this page and redirect to previous one; throws Error if page is already not active
 */
-x.ui.Page.define("cancel", function (http_status, http_message) {
+x.ui.Page.define("cancel", function () {
     if (this.active !== true) {
         this.throwError("subsequent call to cancel()");
     }
-    this.http_status  = http_status  || 204;
-    this.http_message = http_message || "cancelled";
-    this.prompt_message = null;
     this.happen("cancel");
     this.redirect_url = (this.exit_url_cancel || this.exit_url || this.session.last_non_trans_page_url);
-    if (this.trans && this.trans.active) {
-        this.trans.cancel();
-    }
+    this.data_manager.revertChanges();
     this.active = false;
 });
 
@@ -430,19 +371,11 @@ x.ui.Page.defbind("renderLinks", "render", function () {
 });
 
 
-x.ui.Page.define("getMainDocument", function () {
-    if (!this.main_document) {
-        this.main_document = x.data.Document.clone({
-            id      : "MainDocument",
-            entity  : this.entity,
-            store   : this.store,
-            instance: true
-        });
-        if (this.page_key) {
-            this.main_document.load(this.entity.id + ":" + this.page_key);
-        }
+x.ui.Page.define("getPrimaryRecord", function () {
+    if (!this.primary_record && this.entity) {
+        this.primary_record = this.getPrimaryRecordNotAlreadyDefined();
     }
-    return this.main_document;
+    return this.primary_record;
 });
 
 
@@ -450,35 +383,18 @@ x.ui.Page.define("getMainDocument", function () {
 * Returns the primary row of this page, if it has one
 * @return Descendent of Entity object, modifiable if the page is transactional
 */
-x.ui.Page.define("getPrimaryRow", function () {
-    if (!this.primary_row) {
-        if (this.transactional) {
-            if (!this.entity) {
-                return;
-//                this.throwError("transaction page must specify entity");
-            }
-            if (this.page_key_entity) {        // Setting for page_key to relate to different entity
-                this.primary_row = this.getTrans().createNewRow(this.entity.id);
-            } else {
-                if (this.page_key) {
-                    this.primary_row = this.getTrans().getActiveRow(this.entity.id, this.page_key);
-                } else {
-                    this.primary_row = this.getTrans().createNewRow(this.entity.id);
-                }
-            }
+x.ui.Page.define("getPrimaryRecordNotAlreadyDefined", function () {
+    var primary_record;
+    if (this.page_key_entity) {        // Setting for page_key to relate to different entity
+        primary_record = this.data_manager.createNewRecord(this.entity.id);
+    } else {
+        if (this.page_key) {
+            primary_record = this.data_manager.getRecord(this.entity.id, this.page_key);
         } else {
-            if (this.entity && this.page_key) {
-                this.primary_row = this.entity.getRow(this.page_key);        // non-transaction
-            }
-        }
-        if (this.primary_row && this.primary_row.messages) {
-            this.primary_row.messages.prefix = "";              // avoid prefix text in messages
+            primary_record = this.data_manager.createNewRecord(this.entity.id);
         }
     }
-    if (!this.full_title && this.primary_row && this.primary_row.action !== "C") {
-        this.full_title = this.title + ": " + this.primary_row.getLabel("page_title_addl");
-    }
-    return this.primary_row;
+    return primary_record;
 });
 
 
@@ -496,7 +412,12 @@ x.ui.Page.define("getSimpleURL", function (override_key) {
 * Returns the page title text string
 * Page title text string
 */
-x.ui.Page.define("getPageTitle", function () {
-    return this.full_title;
+x.ui.Page.define("setTitle", function (title) {
+    return $(this.selectors.title).text(title);
+});
+
+
+x.ui.Page.define("setDescription", function (descr) {
+    return $(this.selectors.descr).text(descr);
 });
 

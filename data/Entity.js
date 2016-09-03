@@ -136,8 +136,14 @@ x.data.Entity.define("populateFromObject", function (obj) {
         if (obj[entity_id] && obj[entity_id].length > 0) {
             that.children[entity_id] = [];
             _.each(obj[entity_id], function (obj_sub) {
-                var record = entity.getRecord();
-                record.populateFromDocument(obj_sub);
+                var record = entity.getRecord({ data_manager: that.data_manager, status: 'L', modifiable: true, parent_record: that });
+                // that.data_manager.getExistingRecordNotInCache(entity_id, key)
+                if (entity.link_field) {
+                    record.getField(entity.link_field).set(that.getFullKey());
+                }
+                record.populateFromObject(obj_sub);
+                that.data_manager.addToCache(record);
+                record.getReadyPromise();
                 record.happen("initUpdate");
                 that.children[entity_id].push(record);
             });
@@ -202,19 +208,24 @@ x.data.Entity.defbind("setKeyFieldsFixed", "initUpdate", function () {
 
 
 x.data.Entity.defbind("checkForPrimaryKeyChange", "afterFieldChange", function (spec) {
+    var new_key;
     if (this.status === 'U') {
         this.status = 'M';
     }
     if (this.primary_key.indexOf(spec.field) > -1) {
-        if (this.data_manager) {
-            this.data_manager.addToCache(this, this.full_key);
-        }
-        this.full_key = this.getFullKey();
-        this.eachChildRecord(function (record) {
-            record.getField(record.link_field).set(spec.field.get());
-        });
+        try {
+            new_key = this.getFullKey();              // throws Error if key not complete
+            if (this.data_manager) {
+                this.data_manager.addToCache(this, this.full_key);
+            }
+            this.full_key = new_key;
+            this.eachChildRecord(function (record) {
+                record.getField(record.link_field).set(spec.field.get());
+            });
+        } catch (ignore) {}
     }
 });
+
 
 /*
 x.data.Entity.define("linkToParent", function (parent_record, link_field) {
@@ -290,10 +301,18 @@ x.data.Entity.define("isKeyComplete", function (key) {
 
 
 x.data.Entity.define("getKeyPieces", function () {
-    var count = 0;
-    _.each(this.primary_key, function (key_field) {
-        count += key_field.getKeyPieces();
-    });
+    var that = this,
+        count = 0;
+
+    if (this.instance) {
+        _.each(this.primary_key, function (key_field) {
+            count += key_field.getKeyPieces();
+        });
+    } else {
+        _.each(this.primary_key.split(","), function (key_field_id) {
+            count += that.getField(key_field_id).getKeyPieces();
+        });
+    }
     return count;
 });
 
@@ -304,10 +323,17 @@ x.data.Entity.define("getKeyLength", function () {
 
     if (typeof this.key_length !== "number") {
         this.key_length = 0;
-        _.each(this.primary_key, function (key_field) {
-            that.key_length += delim + key_field.getDataLength();
-            delim = 1;
-        });
+        if (this.instance) {
+            _.each(this.primary_key, function (key_field) {
+                that.key_length += delim + key_field.getDataLength();
+                delim = 1;
+            });
+        } else {
+            _.each(this.primary_key.split(","), function (key_field_id) {
+                that.key_length += delim + that.getField(key_field_id).getDataLength();
+                delim = 1;
+            });
+        }
     }
     return this.key_length;
 });
@@ -324,6 +350,9 @@ x.data.Entity.define("getRelativeKey", function () {
     _.each(this.primary_key, function (key_field) {
         if (key_field.isBlank()) {
             that.throwError("primary key field is blank: " + key_field.id);
+        }
+        if (key_field.id === that.link_field) {
+            return;
         }
         out += delim + key_field.get();
         delim = ".";

@@ -34,6 +34,11 @@ x.data.fields.Reference.define("getRefVal", function () {
 });
 
 
+x.data.fields.Reference.override("getKeyPieces", function () {
+    return x.data.entities[this.ref_entity].getKeyPieces();
+});
+
+
 /**
 * To return the LoV object this field contains, being the 'lov' property if present; if not, this function
 * @return LoV object, this.lov

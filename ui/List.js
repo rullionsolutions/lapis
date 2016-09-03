@@ -147,55 +147,8 @@ x.ui.sections.List.define("renderColumnGroupHeadings", function (thead_elem) {
 });
 
 
-/**
-* To render an object (usually a fieldset) as a row in the table by calling renderListRow(), or as a form by
-* @param , row_obj object (usually a fieldset) used by renderListRow() or renderRepeatForm()
-*/
-x.ui.sections.List.override("renderRecord", function (record) {
-    var table_elem,
-        css_class,
-        row_elem,
-        i;
-
-    table_elem = this.getTableElement();
-    css_class  = this.getRowCSSClass(record);
-    row_elem   = table_elem.makeElement("tr", css_class);
-    this.rowURL(row_elem, record);
-    for (i = 0; i < this.level_break_depth; i += 1) {
-        row_elem.makeElement("td");
-    }
-    for (i = 0; i < this.columns.length(); i += 1) {
-        if (this.columns.get(i).isVisibleColumn()) {
-            this.columns.get(i).renderCell(row_elem, i, record);
-        }
-    }
-    for (i = 0; i < this.columns.length(); i += 1) {
-        this.columns.get(i).renderAdditionalRow(table_elem, i, record, css_class);
-    }
-    return row_elem;
-});
-
-
-/**
-* To return the CSS class string for the tr object - 'css_row_even' or 'css_row_odd' for row striping
-* @param record
-* @return CSS class string
-*/
-x.ui.sections.List.define("getRowCSSClass", function (/*record*/) {
-    var str = (this.getRecordCount() % 2 === 0) ? "css_row_even" : "css_row_odd";
-    return str;
-});
-
-
-/**
-* To return a string URL for the row, if appropriate
-* @param row_elem (xmlstream), record (usually a fieldset)
-* @return string URL or null or undefined
-*/
-x.ui.sections.List.define("rowURL", function (row_elem, record) {
-    if (record && typeof record.getKey === "function") {
-        row_elem.attr("data-key", record.getKey());
-    }
+x.ui.sections.List.override("getItemSetElement", function () {
+    return this.getTableElement().makeElement("tbody");
 });
 
 

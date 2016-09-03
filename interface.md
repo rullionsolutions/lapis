@@ -41,7 +41,7 @@
 * happens: initCreate(()), initUpdate(()), load(()), afterTransChange(()), presave(())
 * getEntity(entity_id), getEntityThrowIfUnrecognized(entity_id)
 * getRecord(spec), createChildRecord(entity_id, link_field), getChildRecord(entity_id, relative_key), eachChildRecord(funct, entity_id)
-* populateFromDocument(doc_obj), populateToDocument()
+* populateFromObject(doc_obj), populateToObject()
 * getKey(), getLabel(), getPluralLabel()
 * setDelete(bool), isDelete()
 * getSearchPage(), getDisplayPage(), getDisplayURL()

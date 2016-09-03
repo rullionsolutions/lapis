@@ -8,9 +8,10 @@ x.ui = x.ui || {};
 
 x.ui.Controller = x.base.Base.clone({
     id              : "Controller",
-    store           : null,
+    data_manager    : null,
     selectors       : null,
-    page            : null
+    page            : null,
+    default_home    : "home"
 });
 
 
@@ -20,6 +21,7 @@ x.ui.Controller.define("hashChange", function () {
         params = this.getParamsFromHash(uri.fragment());
 
     // alert user if page has unsaved data
+    params.page_id = params.page_id || this.default_home;
     this.page = this.getPageFromParams(params);
     this.page.render();
 });
@@ -51,7 +53,7 @@ x.ui.Controller.define("getPageFromParams", function (params) {
         id          : page_id,
         instance    : true,
         page_key    : params.page_key,
-        store       : this.store,
+        data_manager: this.data_manager,
         selectors   : this.selectors
     });
 });

@@ -5,7 +5,7 @@ x.data.Entity.clone({
     id              : "sy_list_item",
     title           : "List Item",
     area            : "sy",
-    primary_key     : "id",    // Specified like this to avoid issues with multi-part keys from changing sequence
+    primary_key     : "list,id",    // Specified like this to avoid issues with multi-part keys from changing sequence
     parent_entity   : "sy_list",
     link_field      : "list",
     default_order   : "list,seq_number",

@@ -145,6 +145,17 @@ x.data.FieldSet.define("isModifiable", function () {
 });
 
 
+x.data.FieldSet.define("setModifiable", function (bool) {
+    if (typeof bool !== "boolean") {
+        this.throwError("argument must be a boolean");
+    }
+    if (bool === false && this.isModified()) {
+        this.throwError("already modified");
+    }
+    this.modifiable = bool;
+});
+
+
 x.data.FieldSet.define("isValid", function (modified_only, field_group) {
     var valid = true;
     if (this.deleting) {

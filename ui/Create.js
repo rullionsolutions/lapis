@@ -14,11 +14,9 @@ x.ui.sections.Create.defbind("setupFieldSet", "setup", function () {
         return;             // set already
     }
     if (this.link_field) {
-        this.setDocument(this.owner.page.getMainDocument());
-        fieldset = this.document.createChildRecord(this.entity.id, this.link_field);
+        fieldset = this.owner.page.getPrimaryRecord().createChildRecord(this.entity.id, this.link_field);
     } else if (this.entity.id === this.owner.page.entity.id) {
-        this.setDocument(this.owner.page.getMainDocument());
-        fieldset = this.document.create();
+        fieldset = this.owner.page.getPrimaryRecord();
     } else {
         this.throwError("no fieldset and can't create one");
     }

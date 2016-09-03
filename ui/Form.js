@@ -41,17 +41,17 @@ x.ui.sections.Form.define("getFieldSet", function () {
 });
 
 
-x.ui.sections.Form.define("setDocument", function (document) {
-    if (this.document) {
-        this.throwError("can't change document once set");
-    }
-    this.document = document;
-});
+// x.ui.sections.Form.define("setDocument", function (document) {
+//     if (this.document) {
+//         this.throwError("can't change document once set");
+//     }
+//     this.document = document;
+// });
 
 
-x.ui.sections.Form.define("getDocument", function () {
-    return this.document;
-});
+// x.ui.sections.Form.define("getDocument", function () {
+//     return this.document;
+// });
 
 
 x.ui.sections.Form.override("isValid", function () {
@@ -59,15 +59,19 @@ x.ui.sections.Form.override("isValid", function () {
 });
 
 
-x.ui.sections.Form.defbind("bindRenderToDocument", "render", function () {
+x.ui.sections.Form.defbind("renderRecord", "render", function () {
     var that = this;
-    if (!this.document) {
-        this.throwError("Form has no document");
+    if (!this.fieldset) {
+        this.throwError("Form has no fieldset");
     }
-    this.document.defbind("renderSection__" + this.id, "ready", function () {
-        that.setFieldSet(this.record);
-        that.renderForm();
-    });
+    if (typeof this.fieldset.getReadyPromise === "function") {
+        this.fieldset.getReadyPromise()
+            .then(function () {
+                that.renderForm();
+            });
+    } else {
+        this.renderForm();
+    }
 });
 
 

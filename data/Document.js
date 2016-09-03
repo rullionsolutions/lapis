@@ -47,7 +47,7 @@ x.data.Document.defbind("populate", "afterLoad", function (doc_obj) {
     }
     this.record = this.entity.getRecord();
     this.record.document = this;
-    this.record.populateFromDocument(doc_obj);
+    this.record.populateFromObject(doc_obj);
     this.record.happen("initUpdate");
     this.status = 'U';      // unmodified
 });

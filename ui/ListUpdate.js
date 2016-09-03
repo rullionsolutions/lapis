@@ -150,7 +150,7 @@ x.ui.sections.ListUpdate.define("deleteRecordIconClicked", function (event, reco
 });
 
 
-x.ui.sections.ListUpdate.defbind("updateDueToDeletedRecord", "deleteRecord", function (record) {
+x.ui.sections.ListUpdate.defbind("updateDueToBeDeletedRecord", "deleteRecord", function (record) {
     var id;
     if (this.add_record_unique && this.add_record_field_obj) {
         id = record.getField(this.add_record_field_id).get();

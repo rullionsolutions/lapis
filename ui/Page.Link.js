@@ -40,7 +40,7 @@ x.ui.Page.Link.define("getURL", function (override_key) {
         page_to = this.getToPage();
 
     if (page_to) {
-        url = page_to.skin + "?page_id=" + page_to.id;
+        url = "#page_id=" + page_to.id;
         if (this.page_key) {
             url += "&page_key=" + this.page_key;
         }
@@ -91,9 +91,9 @@ x.ui.Page.Link.define("render", function (parent_elmt) {
     if (this.target) {
         this.element.attr("target", this.target);
     }
-    if (page_to) {
-        task_info = this.owner.page.session.getPageTaskInfo(page_to.id, this.getKey());
-    }
+    // if (page_to) {
+    //     task_info = this.owner.page.session.getPageTaskInfo(page_to.id, this.getKey());
+    // }
     if (task_info) {
         tooltip = "Task for " + task_info.assigned_user_name;
         if (task_info.due_date) {
@@ -101,7 +101,7 @@ x.ui.Page.Link.define("render", function (parent_elmt) {
         }
         this.element.attr("title", tooltip);
     }
-    this.element.text(this.getLabel() + (this.arrow_icon || ""));
+    this.element.text(this.getLabel() + (this.arrow_icon || ""), true);
 });
 
 
@@ -139,7 +139,8 @@ x.ui.Page.Link.define("checkCachedRecord", function (cached_record, key) {
 * @param {string, optional} override key
 * @return {boolean} true if the link should be shown, false otherwise
 */
-x.ui.Page.Link.define("isVisible", function (session, override_key, cached_record) {
+x.ui.Page.Link.define("isVisible", function (/* session, override_key, cached_record */) {
+/*
     var key,
         page_to = this.getToPage();
 
@@ -148,7 +149,9 @@ x.ui.Page.Link.define("isVisible", function (session, override_key, cached_recor
         this.trace("page_to: " + page_to.id + ", key: " + key);// §vani.core.7.5.1.2
         return (this.visible && page_to.allowed(session, key, this.checkCachedRecord(cached_record, key)).access);
     }
-    return session.allowedURL(this.getURL(override_key));               // §vani.core.7.5.2.3
+*/
+    // return session.allowedURL(this.getURL(override_key));               // §vani.core.7.5.2.3
+    return this.visible;
 //    return this.visible && this.allowed(session, override_key);
 });
 

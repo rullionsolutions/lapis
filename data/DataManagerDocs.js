@@ -1,9 +1,7 @@
 /*global x, _ */
 "use strict";
 
-/**
-* To manage a set of records, ensuring ACID compliance
-*/
+
 x.data.DataManagerDocs = x.data.DataManager.clone({
     id              : "DataManagerDocs",
     store           : null,             // data store to get Document from and save back to
@@ -22,7 +20,7 @@ x.data.DataManagerDocs.override("getLoadingPromise", function (record) {
             record.happen("initUpdate");
         })
         .then(null, function (error) {
-            record.error("record not found for key: " + record.load_key);
+            // record.error("record not found for key: " + record.load_key);
             record.report(error);
             record.status = 'E';
         });
