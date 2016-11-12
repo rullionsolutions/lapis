@@ -1,4 +1,4 @@
-/*global x, URI, window */
+/* global x, URI, window */
 "use strict";
 
 
